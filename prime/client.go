@@ -109,7 +109,6 @@ func primeCall(
 	}
 
 	return nil
-
 }
 
 func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
@@ -123,14 +122,14 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 		return response
 	}
 
-	method := "POST"
+	method := http.MethodPost
 	if strings.ToLower(request.HttpMethod) == "get" {
-		method = "GET"
+		method = http.MethodGet
 	}
 
 	parsedUrl, err := url.Parse(request.Url)
 	if err != nil {
-		response.Error = fmt.Errorf("Unable to parse Call URL: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot parse URL: %s - msg: %v", request.Url, err)
 		return response
 	}
 
@@ -145,7 +144,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 	req, err := http.NewRequestWithContext(ctx, method, request.Url, bytes.NewReader(request.Body))
 	if err != nil {
-		response.Error = fmt.Errorf("unable to to create HTTP request: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot create HTTP request: %s - msg: %v", request.Url, err)
 		return response
 	}
 
@@ -159,14 +158,14 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 	res, err := client.Do(req)
 	if err != nil {
-		response.Error = fmt.Errorf("unable call to URL: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot call URL: %s - msg: %v", request.Url, err)
 		return response
 	}
 
 	defer res.Body.Close()
 	resBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		response.Error = fmt.Errorf("unable to read response body: %s - err: %w", request.Url, err)
+		response.Error = fmt.Errorf("cannot read response body: %s - err: %w", request.Url, err)
 		return response
 	}
 
@@ -192,7 +191,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 		}
 
 		response.Error = fmt.Errorf(
-			"Expected status code: %d - received: %d - status msg: %s - url %s - response: %s - repsonse msg: %s",
+			"expected status code: %d - received: %d - status msg: %s - url %s - response: %s - repsonse msg: %s",
 			request.ExpectedHttpStatusCode,
 			res.StatusCode,
 			res.Status,

@@ -55,7 +55,7 @@ func currentExchangeProductPrice(productId string) (decimal.Decimal, error) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return price, fmt.Errorf("unable call Exchange product err: %v", err)
+		return price, fmt.Errorf("cannot call Exchange product err: %w", err)
 	}
 
 	defer res.Body.Close()
@@ -67,10 +67,10 @@ func currentExchangeProductPrice(productId string) (decimal.Decimal, error) {
 	if res.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "message") {
 		var errMsg prime.ErrorMessage
 		if err := json.Unmarshal(body, &errMsg); err != nil {
-			return price, fmt.Errorf("unable to unmarshal Exchange error messsage: %v", err)
+			return price, fmt.Errorf("cannot unmarshal Exchange error messsage: %w", err)
 		}
 
-		return price, fmt.Errorf("unable to fetch Exchnage price price - did return 200 - val: %d - msg: %s", res.StatusCode, errMsg.Message)
+		return price, fmt.Errorf("cannot fetch Exchnage price price - did return 200 - val: %d - msg: %s", res.StatusCode, errMsg.Value)
 	}
 
 	if res.StatusCode != http.StatusOK {
@@ -80,7 +80,7 @@ func currentExchangeProductPrice(productId string) (decimal.Decimal, error) {
 	var productPrice ExchangeProductPrice
 	if err = json.Unmarshal(body, &productPrice); err != nil {
 		return price, fmt.Errorf(
-			"unable to parse Exchange product price response - value: %s - err: %w",
+			"cannot parse Exchange product price response - value: %s - err: %w",
 			string(body),
 			err,
 		)

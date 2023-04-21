@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("unable to init prime credentials: %v", err)
 	}
 
-	log.Info("watch for crypto assets in hot wallets/trading and sell")
+	log.Warn("watch for crypto assets in hot wallets/trading and sell")
 
 	go liquidator.ConvertToFiat()
 

@@ -43,7 +43,7 @@ const (
 )
 
 type ErrorMessage struct {
-	Message string `json:"message"`
+	Value string `json:"message"`
 }
 
 type AssetBalances struct {

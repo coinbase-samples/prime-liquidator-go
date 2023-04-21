@@ -47,6 +47,7 @@ type apiResponse struct {
 	HttpStatusCode int
 	HttpStatusMsg  string
 	Error          error
+	ErrorMessage   *ErrorMessage
 }
 
 func (r apiResponse) IsHttpOk() bool {
@@ -101,11 +102,11 @@ func primeCall(
 	)
 
 	if resp.Error != nil {
-		return fmt.Errorf("prime error: %w", err)
+		return fmt.Errorf("prime call: %w", resp.Error)
 	}
 
 	if err := resp.Unmarshal(response); err != nil {
-		return fmt.Errorf("unable to marshall prime response: %w", err)
+		return fmt.Errorf("umarshall prime response: %w", err)
 	}
 
 	return nil
@@ -118,7 +119,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 	}
 
 	if strings.ToLower(request.HttpMethod) != "get" && strings.ToLower(request.HttpMethod) != "post" {
-		response.Error = fmt.Errorf("prime.MakeCall HttpMethod must get GET or POST - received: %s", request.HttpMethod)
+		response.Error = fmt.Errorf("HttpMethod must be GET or POST - received: %s", request.HttpMethod)
 		return response
 	}
 
@@ -129,7 +130,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 	parsedUrl, err := url.Parse(request.Url)
 	if err != nil {
-		response.Error = fmt.Errorf("cannot parse URL: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot parse URL: %s - err: %w", request.Url, err)
 		return response
 	}
 
@@ -144,7 +145,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 	req, err := http.NewRequestWithContext(ctx, method, request.Url, bytes.NewReader(request.Body))
 	if err != nil {
-		response.Error = fmt.Errorf("cannot create HTTP request: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot create HTTP request: %s - err: %w", request.Url, err)
 		return response
 	}
 
@@ -158,7 +159,7 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 	res, err := client.Do(req)
 	if err != nil {
-		response.Error = fmt.Errorf("cannot call URL: %s - msg: %v", request.Url, err)
+		response.Error = fmt.Errorf("cannot call URL: %s - err: %v", request.Url, err)
 		return response
 	}
 
@@ -187,17 +188,25 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
 		var errMsg ErrorMessage
 		if strings.Contains(string(response.Body), "message") {
+			// We do not want to be distracted by an error here. If the message
+			// cannot be parsed, the body is available as well.
 			_ = json.Unmarshal(response.Body, &errMsg)
+			response.ErrorMessage = &errMsg
+		}
+
+		responseMsg := string(resBody)
+
+		if response.ErrorMessage != nil && len(response.ErrorMessage.Value) > 0 {
+			responseMsg = response.ErrorMessage.Value
 		}
 
 		response.Error = fmt.Errorf(
-			"expected status code: %d - received: %d - status msg: %s - url %s - response: %s - repsonse msg: %s",
+			"expected status code: %d - received: %d - status msg: %s - url %s - msg: %s",
 			request.ExpectedHttpStatusCode,
 			res.StatusCode,
 			res.Status,
 			request.Url,
-			string(resBody),
-			errMsg.Message,
+			responseMsg,
 		)
 	}
 

@@ -5,9 +5,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.cbhq.net/ryan-nitz/prime-liquidator/config"
-	"github.cbhq.net/ryan-nitz/prime-liquidator/liquidator"
-	"github.cbhq.net/ryan-nitz/prime-liquidator/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/config"
+	"github.com/coinbase-samples/prime-liquidator-go/liquidator"
+	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	log "github.com/sirupsen/logrus"
 )
 

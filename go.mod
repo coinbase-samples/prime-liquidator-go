@@ -1,4 +1,4 @@
-module github.cbhq.net/ryan-nitz/prime-liquidator
+module github.com/coinbase-samples/prime-liquidator-go
 
 go 1.19
 

@@ -1,4 +1,4 @@
-FROM public.ecr.aws/bitnami/golang:latest as builder
+FROM public.ecr.aws/docker/library/golang:latest as builder
 
 ARG CACHEBUST=1
 

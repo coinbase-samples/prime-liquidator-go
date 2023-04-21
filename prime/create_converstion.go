@@ -5,6 +5,26 @@ import (
 	"fmt"
 )
 
+type CreateConversionRequest struct {
+	PortfolioId         string `json:"portfolio_id"`
+	SourceWalletId      string `json:"wallet_id"`
+	SourceSymbol        string `json:"source_symbol"`
+	DestinationWalletId string `json:"destination"`
+	DestinationSymbol   string `json:"destination_symbol"`
+	IdempotencyId       string `json:"idempotency_key"`
+	Amount              string `json:"amount"`
+}
+
+type CreateConversionResponse struct {
+	ActivityId          string                   `json:"activity_id"`
+	SourceSymbol        string                   `json:"source_symbol"`
+	DestinationSymbol   string                   `json:"destination_symbol"`
+	Amount              string                   `json:"amount"`
+	DestinationWalletId string                   `json:"destination"`
+	SourceWalletId      string                   `json:"source"`
+	Request             *CreateConversionRequest `json:"request"`
+}
+
 func CreateConversion(
 	ctx context.Context,
 	request *CreateConversionRequest,

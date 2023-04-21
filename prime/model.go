@@ -55,20 +55,6 @@ type ErrorMessage struct {
 	Message string `json:"message"`
 }
 
-type DescribeBalancesRequest struct {
-	PortfolioId string   `json:"portfolio_id"`
-	Type        string   `json:"balance_type"`
-	Symbols     []string `json:"symbols"`
-}
-
-type DescribeBalancesResponse struct {
-	Balances        []*AssetBalances         `json:"balances"`
-	Type            string                   `json:"type"`
-	TradingBalances *BalanceWithHolds        `json:"trading_balances"`
-	VaultBalances   *BalanceWithHolds        `json:"vault_balances"`
-	Request         *DescribeBalancesRequest `json:"request"`
-}
-
 type AssetBalances struct {
 	Symbol               string `json:"symbol"`
 	Amount               string `json:"amount"`
@@ -117,34 +103,6 @@ type IteratorParams struct {
 	SortDirection string `json:"sort_direction"`
 }
 
-type DescribeProductsRequest struct {
-	PortfolioId    string          `json:"portfolioId"`
-	IteratorParams *IteratorParams `json:"iteratorParams"`
-}
-
-type DescribeProductsResponse struct {
-	Products   []*Product               `json:"products"`
-	Pagination *Pagination              `json:"pagination"`
-	Request    *DescribeProductsRequest `json:"request"`
-}
-
-func (r DescribeProductsResponse) HasNext() bool {
-	return r.Pagination != nil && r.Pagination.HasNext
-}
-
-type DescribeWalletsRequest struct {
-	PortfolioId    string          `json:"string"`
-	Type           string          `json:"type"`
-	Symbols        []string        `json:"symbols"`
-	IteratorParams *IteratorParams `json:"iteratorParams"`
-}
-
-type DescribeWalletsResponse struct {
-	Wallets    []*Wallet               `json:"wallets"`
-	Request    *DescribeWalletsRequest `json:"request"`
-	Pagination *Pagination             `json:"pagination"`
-}
-
 func (r DescribeWalletsResponse) HasNext() bool {
 	return r.Pagination != nil && r.Pagination.HasNext
 }
@@ -156,74 +114,6 @@ type Wallet struct {
 	Cursor    string    `json:"cursor"`
 	Symbol    string    `json:"symbol"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-type CreateOrderRequest struct {
-	PortfolioId      string `json:"portfolio_id"`
-	Side             string `json:"side"`
-	ClientOrderId    string `json:"client_order_id"`
-	ProductId        string `json:"product_id"`
-	Type             string `json:"type"`
-	BaseQuantity     string `json:"base_quantity"`
-	QuoteValue       string `json:"quote_value,omitempty"`
-	LimitPrice       string `json:"limit_price,omitempty"`
-	StartTime        string `json:"start_time,omitempty"`
-	ExpiryTime       string `json:"expiry_time,omitempty"`
-	TimeInForce      string `json:"time_in_force,omitempty"`
-	StpId            string `json:"stp_id,omitempty"`
-	DisplayQuoteSize string `json:"display_quote_size,omitempty"`
-	DisplayBaseSize  string `json:"display_base_size,omitempty"`
-	IsRaiseExact     string `json:"is_raise_exact,omitempty"`
-}
-
-type CreateOrderResponse struct {
-	OrderId string              `json:"order_id"`
-	Request *CreateOrderRequest `json:"request"`
-}
-
-type CreateOrderPreviewResponse struct {
-	PortfolioId      string              `json:"portfolio_id"`
-	Side             string              `json:"side"`
-	ClientOrderId    string              `json:"client_order_id"`
-	ProductId        string              `json:"product_id"`
-	Type             string              `json:"type"`
-	BaseQuantity     string              `json:"base_quantity"`
-	QuoteValue       string              `json:"quote_value,omitempty"`
-	LimitPrice       string              `json:"limit_price,omitempty"`
-	StartTime        string              `json:"start_time,omitempty"`
-	ExpiryTime       string              `json:"expiry_time,omitempty"`
-	TimeInForce      string              `json:"time_in_force,omitempty"`
-	StpId            string              `json:"stp_id,omitempty"`
-	DisplayQuoteSize string              `json:"display_quote_size,omitempty"`
-	DisplayBaseSize  string              `json:"display_base_size,omitempty"`
-	IsRaiseExact     string              `json:"is_raise_exact,omitempty"`
-	Commission       string              `json:"commission"`
-	Slippage         string              `json:"slippage"`
-	BestBid          string              `json:"best_bid"`
-	BestAsk          string              `json:"best_ask"`
-	AvgFillPrice     string              `json:"average_filled_price"`
-	OrderTotal       string              `json:"order_total"`
-	Request          *CreateOrderRequest `json:"request"`
-}
-
-type CreateConversionRequest struct {
-	PortfolioId         string `json:"portfolio_id"`
-	SourceWalletId      string `json:"wallet_id"`
-	SourceSymbol        string `json:"source_symbol"`
-	DestinationWalletId string `json:"destination"`
-	DestinationSymbol   string `json:"destination_symbol"`
-	IdempotencyId       string `json:"idempotency_key"`
-	Amount              string `json:"amount"`
-}
-
-type CreateConversionResponse struct {
-	ActivityId          string                   `json:"activity_id"`
-	SourceSymbol        string                   `json:"source_symbol"`
-	DestinationSymbol   string                   `json:"destination_symbol"`
-	Amount              string                   `json:"amount"`
-	DestinationWalletId string                   `json:"destination"`
-	SourceWalletId      string                   `json:"source"`
-	Request             *CreateConversionRequest `json:"request"`
 }
 
 type Credentials struct {

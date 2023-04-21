@@ -5,6 +5,19 @@ import (
 	"fmt"
 )
 
+type DescribeWalletsRequest struct {
+	PortfolioId    string          `json:"string"`
+	Type           string          `json:"type"`
+	Symbols        []string        `json:"symbols"`
+	IteratorParams *IteratorParams `json:"iteratorParams"`
+}
+
+type DescribeWalletsResponse struct {
+	Wallets    []*Wallet               `json:"wallets"`
+	Request    *DescribeWalletsRequest `json:"request"`
+	Pagination *Pagination             `json:"pagination"`
+}
+
 func DescribeWallets(
 	ctx context.Context,
 	request *DescribeWalletsRequest,

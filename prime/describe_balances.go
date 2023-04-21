@@ -5,6 +5,20 @@ import (
 	"fmt"
 )
 
+type DescribeBalancesRequest struct {
+	PortfolioId string   `json:"portfolio_id"`
+	Type        string   `json:"balance_type"`
+	Symbols     []string `json:"symbols"`
+}
+
+type DescribeBalancesResponse struct {
+	Balances        []*AssetBalances         `json:"balances"`
+	Type            string                   `json:"type"`
+	TradingBalances *BalanceWithHolds        `json:"trading_balances"`
+	VaultBalances   *BalanceWithHolds        `json:"vault_balances"`
+	Request         *DescribeBalancesRequest `json:"request"`
+}
+
 func DescribeBalances(
 	ctx context.Context,
 	request *DescribeBalancesRequest,

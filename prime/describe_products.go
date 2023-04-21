@@ -5,6 +5,21 @@ import (
 	"fmt"
 )
 
+type DescribeProductsRequest struct {
+	PortfolioId    string          `json:"portfolioId"`
+	IteratorParams *IteratorParams `json:"iteratorParams"`
+}
+
+type DescribeProductsResponse struct {
+	Products   []*Product               `json:"products"`
+	Pagination *Pagination              `json:"pagination"`
+	Request    *DescribeProductsRequest `json:"request"`
+}
+
+func (r DescribeProductsResponse) HasNext() bool {
+	return r.Pagination != nil && r.Pagination.HasNext
+}
+
 // TODO: Add an interator version as well
 
 func DescribeProducts(

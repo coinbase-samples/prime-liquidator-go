@@ -2,6 +2,7 @@ package liquidator
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -66,7 +67,11 @@ func createOrder(
 
 	response, err := prime.CreateOrder(ctx, request)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(
+			"unable to create order - client order id: %s - err: %w",
+			clientOrderId,
+			err,
+		)
 	}
 
 	log.Infof("new order created - id: %s", response.OrderId)

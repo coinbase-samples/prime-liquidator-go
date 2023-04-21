@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.cbhq.net/ryan-nitz/prime-liquidator/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/shopspring/decimal"
 )
 

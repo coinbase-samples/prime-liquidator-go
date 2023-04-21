@@ -3,7 +3,7 @@ package liquidator
 import (
 	"time"
 
-	"github.cbhq.net/ryan-nitz/prime-liquidator/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	log "github.com/sirupsen/logrus"
 )
 

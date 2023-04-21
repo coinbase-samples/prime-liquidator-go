@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.cbhq.net/ryan-nitz/prime-liquidator/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"

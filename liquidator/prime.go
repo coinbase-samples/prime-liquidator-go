@@ -84,8 +84,10 @@ func createOrder(
 	response, err := prime.CreateOrder(ctx, request)
 	if err != nil {
 		return "", fmt.Errorf(
-			"unable to create order - client order id: %s - err: %w",
+			"unable to create order - client order id: %s - symbol: %s - size: %v - err: %w",
 			clientOrderId,
+			asset.Symbol,
+			orderSize,
 			err,
 		)
 	}
@@ -236,7 +238,7 @@ func describeTradingWallets(portfolioId string) (WalletLookup, error) {
 			wallets[wallet.Symbol] = wallet
 		}
 
-		if response.HasNext() {
+		if !response.HasNext() {
 			break
 		}
 

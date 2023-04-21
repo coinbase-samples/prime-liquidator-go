@@ -51,7 +51,7 @@ func ConvertToFiat() {
 		}
 
 		for _, asset := range balances {
-			if err := processBalance(portfolioId, asset, wallets, products); err != nil {
+			if err := processAsset(portfolioId, asset, wallets, products); err != nil {
 				log.Error(err)
 			}
 			time.Sleep(1 * time.Second)

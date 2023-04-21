@@ -1,0 +1,4 @@
+*.swp
+main
+.git
+.gitignore

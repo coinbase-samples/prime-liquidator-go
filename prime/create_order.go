@@ -51,7 +51,7 @@ func CreateOrder(ctx context.Context, request *CreateOrderRequest) (*CreateOrder
 	response := &CreateOrderResponse{Request: request}
 
 	if err := PrimePost(ctx, url, request, response); err != nil {
-		return nil, fmt.Errorf("unable to CreateOrder: %w", err)
+		return nil, fmt.Errorf("prime.CreateOrder failed: %w", err)
 	}
 
 	return response, nil

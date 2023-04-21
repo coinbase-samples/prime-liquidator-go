@@ -24,6 +24,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func init() {
+	initHttpTransPort()
+}
+
 var httpTransport *http.Transport
 
 func SetHttpTransport(tr *http.Transport) *http.Transport {
@@ -35,7 +39,7 @@ func GetHttpTransport() *http.Transport {
 	return httpTransport
 }
 
-func InitHttpTransPort() *http.Transport {
+func initHttpTransPort() *http.Transport {
 	if httpTransport != nil {
 		return httpTransport
 	}
@@ -43,7 +47,6 @@ func InitHttpTransPort() *http.Transport {
 	maxIdleConnections := 50
 	max := os.Getenv("PRIME_SDK_MAX_IDLE_CONNNECTIONS")
 	if len(max) > 0 {
-
 		n, err := strconv.ParseInt(max, 10, 0)
 		if err != nil {
 			log.Fatalf("unable to parse PRIME_SDK_MAX_IDLE_CONNNECTIONS %w", err)

@@ -38,13 +38,13 @@ func main() {
 		log.Fatalf("Cannot set time zone: UTC: %v", err)
 	}
 
-	log.Info("Starting server")
+	log.Info("starting daemon")
 
 	if _, err := prime.InitCredentials(); err != nil {
-		log.Fatalf("Unable to init prime credentials: %v", err)
+		log.Fatalf("unable to init prime credentials: %v", err)
 	}
 
-	log.Info("Watch for digital assets and convert to fiat")
+	log.Info("watch for crypto assets in hot wallets/trading and sell")
 
 	go liquidator.ConvertToFiat()
 

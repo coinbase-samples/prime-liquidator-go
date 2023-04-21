@@ -33,15 +33,37 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type apiRequest struct {
+	Url                    string
+	HttpMethod             string
+	Body                   []byte
+	ExpectedHttpStatusCode int
+	Credentials            *Credentials
+}
+
+type apiResponse struct {
+	Request        *apiRequest
+	Body           []byte
+	HttpStatusCode int
+	HttpStatusMsg  string
+	Error          error
+}
+
+func (r apiResponse) IsHttpOk() bool {
+	return r.HttpStatusCode == 200
+}
+
+func (r apiResponse) Unmarshal(v interface{}) error {
+	return json.Unmarshal(r.Body, v)
+}
+
 func PrimePost(
 	ctx context.Context,
 	url string,
 	request,
 	response interface{},
 ) error {
-
 	return primeCall(ctx, url, http.MethodPost, http.StatusOK, request, response)
-
 }
 
 func PrimeGet(
@@ -50,9 +72,7 @@ func PrimeGet(
 	request,
 	response interface{},
 ) error {
-
 	return primeCall(ctx, url, http.MethodGet, http.StatusOK, request, response)
-
 }
 
 func primeCall(
@@ -71,7 +91,7 @@ func primeCall(
 
 	resp := makeCall(
 		ctx,
-		&Call{
+		&apiRequest{
 			Url:                    url,
 			HttpMethod:             httpMethod,
 			Body:                   body,
@@ -92,70 +112,70 @@ func primeCall(
 
 }
 
-func makeCall(ctx context.Context, call *Call) *Response {
+func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 
-	response := &Response{
-		Call: call,
+	response := &apiResponse{
+		Request: request,
 	}
 
-	if strings.ToLower(call.HttpMethod) != "get" && strings.ToLower(call.HttpMethod) != "post" {
-		response.Error = fmt.Errorf("prime.MakeCall HttpMethod must get GET or POST - received: %s", call.HttpMethod)
+	if strings.ToLower(request.HttpMethod) != "get" && strings.ToLower(request.HttpMethod) != "post" {
+		response.Error = fmt.Errorf("prime.MakeCall HttpMethod must get GET or POST - received: %s", request.HttpMethod)
 		return response
 	}
 
 	method := "POST"
-	if strings.ToLower(call.HttpMethod) == "get" {
+	if strings.ToLower(request.HttpMethod) == "get" {
 		method = "GET"
 	}
 
-	parsedUrl, err := url.Parse(call.Url)
+	parsedUrl, err := url.Parse(request.Url)
 	if err != nil {
-		response.Error = fmt.Errorf("Unable to parse Call URL: %s - msg: %v", call.Url, err)
+		response.Error = fmt.Errorf("Unable to parse Call URL: %s - msg: %v", request.Url, err)
 		return response
 	}
 
 	log.WithFields(log.Fields{
-		"url":         call.Url,
-		"method":      call.HttpMethod,
-		"requestBody": string(call.Body),
+		"url":         request.Url,
+		"method":      request.HttpMethod,
+		"requestBody": string(request.Body),
 		"state":       "beforePrimeCall",
 	}).Debug("prime.MakeCall")
 
 	t := time.Now().Unix()
 
-	req, err := http.NewRequestWithContext(ctx, method, call.Url, bytes.NewReader(call.Body))
+	req, err := http.NewRequestWithContext(ctx, method, request.Url, bytes.NewReader(request.Body))
 	if err != nil {
-		response.Error = fmt.Errorf("unable to to create HTTP request: %s - msg: %v", call.Url, err)
+		response.Error = fmt.Errorf("unable to to create HTTP request: %s - msg: %v", request.Url, err)
 		return response
 	}
 
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("X-CB-ACCESS-KEY", call.Credentials.AccessKey)
-	req.Header.Add("X-CB-ACCESS-PASSPHRASE", call.Credentials.Passphrase)
-	req.Header.Add("X-CB-ACCESS-SIGNATURE", sign(parsedUrl.Path, string(call.Body), method, call.Credentials.SigningKey, t))
+	req.Header.Add("X-CB-ACCESS-KEY", request.Credentials.AccessKey)
+	req.Header.Add("X-CB-ACCESS-PASSPHRASE", request.Credentials.Passphrase)
+	req.Header.Add("X-CB-ACCESS-SIGNATURE", sign(parsedUrl.Path, string(request.Body), method, request.Credentials.SigningKey, t))
 	req.Header.Add("X-CB-ACCESS-TIMESTAMP", fmt.Sprintf("%d", t))
 
 	client := http.Client{Transport: GetHttpTransport()}
 
 	res, err := client.Do(req)
 	if err != nil {
-		response.Error = fmt.Errorf("unable call to URL: %s - msg: %v", call.Url, err)
+		response.Error = fmt.Errorf("unable call to URL: %s - msg: %v", request.Url, err)
 		return response
 	}
 
 	defer res.Body.Close()
 	resBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		response.Error = fmt.Errorf("unable to read response body: %s - err: %w", call.Url, err)
+		response.Error = fmt.Errorf("unable to read response body: %s - err: %w", request.Url, err)
 		return response
 	}
 
 	log.WithFields(log.Fields{
-		"url":           call.Url,
-		"method":        call.HttpMethod,
+		"url":           request.Url,
+		"method":        request.HttpMethod,
 		"httpStatus":    res.StatusCode,
 		"httpStatusMsg": res.Status,
-		"requestBody":   string(call.Body),
+		"requestBody":   string(request.Body),
 		"responseBody":  string(resBody),
 		"state":         "afterPrimeCall",
 	}).Debugf("prime.MakeCall")
@@ -164,7 +184,7 @@ func makeCall(ctx context.Context, call *Call) *Response {
 	response.HttpStatusCode = res.StatusCode
 	response.HttpStatusMsg = res.Status
 
-	if call.ExpectedHttpStatusCode > 0 && res.StatusCode != call.ExpectedHttpStatusCode {
+	if request.ExpectedHttpStatusCode > 0 && res.StatusCode != request.ExpectedHttpStatusCode {
 
 		var errMsg ErrorMessage
 		if strings.Contains(string(response.Body), "message") {
@@ -173,10 +193,10 @@ func makeCall(ctx context.Context, call *Call) *Response {
 
 		response.Error = fmt.Errorf(
 			"Expected status code: %d - received: %d - status msg: %s - url %s - response: %s - repsonse msg: %s",
-			call.ExpectedHttpStatusCode,
+			request.ExpectedHttpStatusCode,
 			res.StatusCode,
 			res.Status,
-			call.Url,
+			request.Url,
 			string(resBody),
 			errMsg.Message,
 		)

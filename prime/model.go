@@ -17,7 +17,6 @@
 package prime
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -42,30 +41,6 @@ const (
 	TimeInForceGoodUntilCancelled = "GOOD_UNTIL_CANCELLED"
 	TimeInForceImmediateOrCancel  = "IMMEDIATE_OR_CANCEL"
 )
-
-type Call struct {
-	Url                    string
-	HttpMethod             string
-	Body                   []byte
-	ExpectedHttpStatusCode int
-	Credentials            *Credentials
-}
-
-type Response struct {
-	Call           *Call
-	Body           []byte
-	HttpStatusCode int
-	HttpStatusMsg  string
-	Error          error
-}
-
-func (r Response) IsHttpOk() bool {
-	return r.HttpStatusCode == 200
-}
-
-func (r Response) Unmarshal(v interface{}) error {
-	return json.Unmarshal(r.Body, v)
-}
 
 type ErrorMessage struct {
 	Message string `json:"message"`

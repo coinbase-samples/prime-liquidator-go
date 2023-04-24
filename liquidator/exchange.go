@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/shopspring/decimal"
@@ -32,9 +33,9 @@ type ExchangeProductPrice struct {
 	Price string `json:"price"`
 }
 
-func currentExchangeProductPrice(productId string) (decimal.Decimal, error) {
+func currentExchangeProductPrice(productId string, timeout time.Duration) (decimal.Decimal, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), primeCallTimeoutInSeconds)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	var price decimal.Decimal

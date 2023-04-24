@@ -49,7 +49,7 @@ func initHttpTransPort() *http.Transport {
 	if len(max) > 0 {
 		n, err := strconv.ParseInt(max, 10, 0)
 		if err != nil {
-			log.Fatalf("unable to parse PRIME_SDK_MAX_IDLE_CONNNECTIONS %w", err)
+			log.Fatalf("unable to parse PRIME_SDK_MAX_IDLE_CONNNECTIONS %v", err)
 		}
 		maxIdleConnections = int(n)
 	}

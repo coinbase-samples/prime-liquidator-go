@@ -41,13 +41,13 @@ func CalculateOrderSize(
 
 	} else {
 
-		orderSize = adjustOrderSize(availableAmount, baseMin, baseMax, baseIncrement)
+		orderSize = AdjustOrderSize(availableAmount, baseMin, baseMax, baseIncrement)
 	}
 
 	return
 }
 
-func adjustOrderSize(amount, baseMin, baseMax, baseIncrement decimal.Decimal) decimal.Decimal {
+func AdjustOrderSize(amount, baseMin, baseMax, baseIncrement decimal.Decimal) decimal.Decimal {
 
 	if amount.Cmp(baseMax) > 0 {
 		return baseMax

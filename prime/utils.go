@@ -17,9 +17,14 @@
 package prime
 
 import (
+	"crypto/md5"
 	"fmt"
 	"strings"
 )
+
+func GenerateUniqueId(params ...string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
+}
 
 func urlIteratorParams(url string, p *IteratorParams) string {
 

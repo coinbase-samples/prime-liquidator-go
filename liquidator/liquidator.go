@@ -100,22 +100,112 @@ func (l *Liquidator) monitor() {
 
 func (l *Liquidator) describeCurrentState() (err error) {
 
-	l.wallets, err = describeTradingWallets(l.config.PortfolioId)
+	l.wallets, err = l.describeTradingWallets()
 	if err != nil {
 		return
 	}
 
-	l.products, err = describeProducts(l.config.PortfolioId)
+	l.products, err = l.describeProducts()
 	if err != nil {
 		return
 	}
 
-	l.balances, err = describeTradingBalances(l.config.PortfolioId)
+	l.balances, err = l.describeTradingBalances()
 	if err != nil {
 		return
 	}
 
 	return
+}
+
+func (l Liquidator) describeTradingBalances() ([]*prime.AssetBalances, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
+	defer cancel()
+
+	response, err := prime.DescribeBalances(
+		ctx,
+		&prime.DescribeBalancesRequest{PortfolioId: l.config.PortfolioId},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Balances, nil
+}
+
+func (l Liquidator) describeProducts() (ProductLookup, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
+	defer cancel()
+
+	products := make(map[string]*prime.Product)
+
+	var cursor string
+
+	for {
+
+		request := &prime.DescribeProductsRequest{
+			PortfolioId:    l.config.PortfolioId,
+			IteratorParams: &prime.IteratorParams{Cursor: cursor},
+		}
+
+		response, err := prime.DescribeProducts(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, p := range response.Products {
+			products[p.Id] = p
+		}
+
+		if !response.HasNext() {
+			break
+		}
+
+		cursor = response.Pagination.NextCursor
+	}
+
+	return products, nil
+}
+
+func (l Liquidator) describeTradingWallets() (WalletLookup, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
+	defer cancel()
+
+	var cursor string
+
+	wallets := make(map[string]*prime.Wallet)
+
+	for {
+
+		request := &prime.DescribeWalletsRequest{
+			PortfolioId: l.config.PortfolioId,
+			Type:        prime.WalletTypeTrading,
+			IteratorParams: &prime.IteratorParams{
+				Cursor: cursor,
+			},
+		}
+
+		response, err := prime.DescribeWallets(ctx, request)
+		if err != nil {
+			return wallets, err
+		}
+
+		for _, wallet := range response.Wallets {
+			wallets[wallet.Symbol] = wallet
+		}
+
+		if !response.HasNext() {
+			break
+		}
+
+		cursor = response.Pagination.NextCursor
+	}
+
+	return wallets, nil
 }
 
 func (l *Liquidator) createConversion(
@@ -196,7 +286,7 @@ func (l Liquidator) createOrder(
 	clientOrderId string,
 ) (string, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), primeCallTimeoutInSeconds)
+	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
 	defer cancel()
 
 	log.Infof("create order request - asset: %s - balance: %s - value: %v - order size: %v", asset.Symbol, asset.Amount, value, orderSize)
@@ -295,6 +385,7 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		strings.ToUpper(
 			fmt.Sprintf("%s-%s", asset.Symbol, l.config.FiatCurrencySymbol),
 		),
+		l.config.PrimeCallTimeout,
 	)
 
 	if err != nil {

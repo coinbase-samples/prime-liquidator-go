@@ -18,7 +18,6 @@ package liquidator
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	"strings"
 	"time"
@@ -419,7 +418,7 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return err
 	}
 
-	clientOrderId := l.generateUniqueId(
+	clientOrderId := prime.GenerateUniqueId(
 		productId,
 		prime.OrderSideSell,
 		prime.OrderTypeTwap,
@@ -473,8 +472,4 @@ func (l Liquidator) adjustTwapLimitPrice(price, quoteIncrement decimal.Decimal) 
 	}
 
 	return quo.Floor().Mul(quoteIncrement)
-}
-
-func (l Liquidator) generateUniqueId(params ...string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
 }

@@ -29,6 +29,10 @@ const (
 	WalletTypeTrading = "TRADING"
 	WalletTypeOther   = "WALLET_TYPE_OTHER"
 
+	BalanceTypeTrading = "TRADING_BALANCES"
+	BalanceTypeVault   = "VAULT_BALANCES"
+	BalanceTypeTotal   = "TOTAL_BALANCES"
+
 	OrderSideBuy  = "BUY"
 	OrderSideSell = "SELL"
 

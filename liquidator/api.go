@@ -103,7 +103,10 @@ func (ac ApiCall) describeTradingBalances() ([]*prime.AssetBalances, error) {
 
 	response, err := prime.DescribeBalances(
 		ctx,
-		&prime.DescribeBalancesRequest{PortfolioId: ac.config.PortfolioId},
+		&prime.DescribeBalancesRequest{
+			PortfolioId: ac.config.PortfolioId,
+			Type:        prime.BalanceTypeTrading,
+		},
 	)
 
 	if err != nil {

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
-	"github.com/google/uuid"
 	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
@@ -42,6 +41,16 @@ type ProductLookup map[string]*prime.Product
 
 type WalletLookup map[string]*prime.Wallet
 
+type Liquidator struct {
+	config           AppConfig
+	toConvertSymbols map[string]bool
+	balances         []*prime.AssetBalances
+	products         ProductLookup
+	wallets          WalletLookup
+	ordersCache      *ttlcache.Cache
+	api              ApiCall
+}
+
 func RunLiquidator(config AppConfig) {
 
 	l := newLiquidator(config)
@@ -54,6 +63,7 @@ func newLiquidator(config AppConfig) (l *Liquidator) {
 	l = &Liquidator{
 		config:           config,
 		toConvertSymbols: make(map[string]bool),
+		api:              ApiCall{config: config},
 	}
 
 	for _, s := range config.ConvertSymbols {
@@ -65,15 +75,6 @@ func newLiquidator(config AppConfig) (l *Liquidator) {
 	l.ordersCache.SetCacheSizeLimit(1000)
 
 	return
-}
-
-type Liquidator struct {
-	config           AppConfig
-	toConvertSymbols map[string]bool
-	balances         []*prime.AssetBalances
-	products         ProductLookup
-	wallets          WalletLookup
-	ordersCache      *ttlcache.Cache
 }
 
 func (l *Liquidator) monitor() {
@@ -207,6 +208,7 @@ func (l Liquidator) describeTradingWallets() (WalletLookup, error) {
 	return wallets, nil
 }
 
+/*
 func (l *Liquidator) createConversion(
 	sourceWallet,
 	destinationWallet *prime.Wallet,
@@ -249,6 +251,7 @@ func (l *Liquidator) createConversion(
 
 	return nil
 }
+*/
 
 func (l Liquidator) calculateTwapLimitPrice(
 	productId string,
@@ -275,6 +278,7 @@ func (l Liquidator) calculateTwapLimitPrice(
 	return
 }
 
+/*
 func (l Liquidator) createOrder(
 	productId string,
 	value,
@@ -342,6 +346,7 @@ func (l Liquidator) createOrderRequest(
 		ExpiryTime:    endTime.Format("2006-01-02T15:04:05Z"),
 	}
 }
+*/
 
 func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 
@@ -373,18 +378,17 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 			return fmt.Errorf("stablecoin wallet not found: %s", asset.Symbol)
 		}
 
-		if err := l.createConversion(stablecoinWallet, fiatWallet, amount); err != nil {
+		if err := l.api.createConversion(stablecoinWallet, fiatWallet, amount); err != nil {
 			return err
 		}
 
 		return nil
 	}
 
-	price, err := currentExchangeProductPrice(
+	price, err := l.api.currentExchangeProductPrice(
 		strings.ToUpper(
 			fmt.Sprintf("%s-%s", asset.Symbol, l.config.FiatCurrencySymbol),
 		),
-		l.config.PrimeCallTimeout,
 	)
 
 	if err != nil {
@@ -430,7 +434,7 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return nil
 	}
 
-	if orderId, err := l.createOrder(
+	if orderId, err := l.api.createOrder(
 		productId,
 		value,
 		orderSize,

@@ -23,6 +23,96 @@ type ApiCall struct {
 	config AppConfig
 }
 
+func (ac ApiCall) describeTradingWallets() (WalletLookup, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	defer cancel()
+
+	var cursor string
+
+	wallets := make(map[string]*prime.Wallet)
+
+	for {
+
+		request := &prime.DescribeWalletsRequest{
+			PortfolioId: ac.config.PortfolioId,
+			Type:        prime.WalletTypeTrading,
+			IteratorParams: &prime.IteratorParams{
+				Cursor: cursor,
+			},
+		}
+
+		response, err := prime.DescribeWallets(ctx, request)
+		if err != nil {
+			return wallets, err
+		}
+
+		for _, wallet := range response.Wallets {
+			wallets[wallet.Symbol] = wallet
+		}
+
+		if !response.HasNext() {
+			break
+		}
+
+		cursor = response.Pagination.NextCursor
+	}
+
+	return wallets, nil
+}
+
+func (ac ApiCall) describeProducts() (ProductLookup, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	defer cancel()
+
+	products := make(map[string]*prime.Product)
+
+	var cursor string
+
+	for {
+
+		request := &prime.DescribeProductsRequest{
+			PortfolioId:    ac.config.PortfolioId,
+			IteratorParams: &prime.IteratorParams{Cursor: cursor},
+		}
+
+		response, err := prime.DescribeProducts(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, p := range response.Products {
+			products[p.Id] = p
+		}
+
+		if !response.HasNext() {
+			break
+		}
+
+		cursor = response.Pagination.NextCursor
+	}
+
+	return products, nil
+}
+
+func (ac ApiCall) describeTradingBalances() ([]*prime.AssetBalances, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	defer cancel()
+
+	response, err := prime.DescribeBalances(
+		ctx,
+		&prime.DescribeBalancesRequest{PortfolioId: ac.config.PortfolioId},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Balances, nil
+}
+
 func (ac ApiCall) createConversion(
 	sourceWallet,
 	destinationWallet *prime.Wallet,

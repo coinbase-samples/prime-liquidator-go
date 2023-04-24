@@ -17,7 +17,6 @@
 package liquidator
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -100,158 +99,23 @@ func (l *Liquidator) monitor() {
 
 func (l *Liquidator) describeCurrentState() (err error) {
 
-	l.wallets, err = l.describeTradingWallets()
+	l.wallets, err = l.api.describeTradingWallets()
 	if err != nil {
 		return
 	}
 
-	l.products, err = l.describeProducts()
+	l.products, err = l.api.describeProducts()
 	if err != nil {
 		return
 	}
 
-	l.balances, err = l.describeTradingBalances()
+	l.balances, err = l.api.describeTradingBalances()
 	if err != nil {
 		return
 	}
 
 	return
 }
-
-func (l Liquidator) describeTradingBalances() ([]*prime.AssetBalances, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
-	defer cancel()
-
-	response, err := prime.DescribeBalances(
-		ctx,
-		&prime.DescribeBalancesRequest{PortfolioId: l.config.PortfolioId},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return response.Balances, nil
-}
-
-func (l Liquidator) describeProducts() (ProductLookup, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
-	defer cancel()
-
-	products := make(map[string]*prime.Product)
-
-	var cursor string
-
-	for {
-
-		request := &prime.DescribeProductsRequest{
-			PortfolioId:    l.config.PortfolioId,
-			IteratorParams: &prime.IteratorParams{Cursor: cursor},
-		}
-
-		response, err := prime.DescribeProducts(ctx, request)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, p := range response.Products {
-			products[p.Id] = p
-		}
-
-		if !response.HasNext() {
-			break
-		}
-
-		cursor = response.Pagination.NextCursor
-	}
-
-	return products, nil
-}
-
-func (l Liquidator) describeTradingWallets() (WalletLookup, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
-	defer cancel()
-
-	var cursor string
-
-	wallets := make(map[string]*prime.Wallet)
-
-	for {
-
-		request := &prime.DescribeWalletsRequest{
-			PortfolioId: l.config.PortfolioId,
-			Type:        prime.WalletTypeTrading,
-			IteratorParams: &prime.IteratorParams{
-				Cursor: cursor,
-			},
-		}
-
-		response, err := prime.DescribeWallets(ctx, request)
-		if err != nil {
-			return wallets, err
-		}
-
-		for _, wallet := range response.Wallets {
-			wallets[wallet.Symbol] = wallet
-		}
-
-		if !response.HasNext() {
-			break
-		}
-
-		cursor = response.Pagination.NextCursor
-	}
-
-	return wallets, nil
-}
-
-/*
-func (l *Liquidator) createConversion(
-	sourceWallet,
-	destinationWallet *prime.Wallet,
-	amount decimal.Decimal,
-) error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
-	defer cancel()
-
-	round := amount.RoundFloor(2)
-
-	if round.IsZero() {
-		return nil
-	}
-
-	log.Infof("converting %s to %s - amount: %v", sourceWallet.Symbol, destinationWallet.Symbol, round)
-
-	request := &prime.CreateConversionRequest{
-		PortfolioId:         l.config.PortfolioId,
-		SourceWalletId:      sourceWallet.Id,
-		DestinationWalletId: destinationWallet.Id,
-		SourceSymbol:        strings.ToUpper(sourceWallet.Symbol),
-		DestinationSymbol:   strings.ToUpper(destinationWallet.Symbol),
-		Amount:              round.String(),
-		IdempotencyId:       uuid.New().String(),
-	}
-
-	response, err := prime.CreateConversion(ctx, request)
-	if err != nil {
-		return err
-	}
-
-	log.Infof(
-		"convert request submitted - %s to %s - amount: %v - activity id: %s",
-		sourceWallet.Symbol,
-		destinationWallet.Symbol,
-		round,
-		response.ActivityId,
-	)
-
-	return nil
-}
-*/
 
 func (l Liquidator) calculateTwapLimitPrice(
 	productId string,
@@ -277,76 +141,6 @@ func (l Liquidator) calculateTwapLimitPrice(
 	limitPrice = l.adjustTwapLimitPrice(price.Sub(maxDiscount), quoteIncrement)
 	return
 }
-
-/*
-func (l Liquidator) createOrder(
-	productId string,
-	value,
-	orderSize decimal.Decimal,
-	asset *prime.AssetBalances,
-	limitPrice decimal.Decimal,
-	duration time.Duration,
-	clientOrderId string,
-) (string, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), l.config.PrimeCallTimeout)
-	defer cancel()
-
-	log.Infof("create order request - asset: %s - balance: %s - value: %v - order size: %v", asset.Symbol, asset.Amount, value, orderSize)
-
-	request := l.createOrderRequest(
-		productId,
-		value,
-		orderSize,
-		asset,
-		limitPrice,
-		duration,
-		clientOrderId,
-	)
-
-	response, err := prime.CreateOrder(ctx, request)
-	if err != nil {
-		return "", fmt.Errorf(
-			"unable to create order - client order id: %s - symbol: %s - size: %v - err: %w",
-			clientOrderId,
-			asset.Symbol,
-			orderSize,
-			err,
-		)
-	}
-
-	log.Infof("new order created - id: %s", response.OrderId)
-
-	return response.OrderId, nil
-}
-
-func (l Liquidator) createOrderRequest(
-	productId string,
-	value,
-	orderSize decimal.Decimal,
-	asset *prime.AssetBalances,
-	limitPrice decimal.Decimal,
-	duration time.Duration,
-	clientOrderId string,
-) *prime.CreateOrderRequest {
-
-	startTime := time.Now()
-	endTime := startTime.Add(duration)
-
-	return &prime.CreateOrderRequest{
-		PortfolioId:   l.config.PortfolioId,
-		ProductId:     productId,
-		Side:          prime.OrderSideSell,
-		Type:          prime.OrderTypeTwap,
-		TimeInForce:   prime.TimeInForceGoodUntilTime,
-		ClientOrderId: clientOrderId,
-		BaseQuantity:  orderSize.String(),
-		LimitPrice:    limitPrice.String(),
-		StartTime:     startTime.Format("2006-01-02T15:04:05Z"),
-		ExpiryTime:    endTime.Format("2006-01-02T15:04:05Z"),
-	}
-}
-*/
 
 func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 

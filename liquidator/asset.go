@@ -82,7 +82,7 @@ func processAsset(
 	)
 
 	if err != nil {
-		return fmt.Errorf("Unable to get exchange price: %s - err: %v", asset.Symbol, err)
+		return fmt.Errorf("cannot get exchange price: %s - err: %w", asset.Symbol, err)
 	}
 
 	productId := fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), fiatCurrencySymbol)

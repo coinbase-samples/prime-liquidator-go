@@ -20,10 +20,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/liquidator"
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,13 +42,23 @@ func main() {
 
 	log.Info("starting daemon")
 
-	if _, err := prime.InitCredentials(); err != nil {
+	credentials, err := prime.InitCredentials()
+	if err != nil {
 		log.Fatalf("unable to init prime credentials: %v", err)
 	}
 
 	log.Warn("watch for crypto assets in hot wallets/trading and sell")
 
-	go liquidator.ConvertToFiat()
+	config := liquidator.AppConfig{
+		PortfolioId:            credentials.PortfolioId,
+		FiatCurrencySymbol:     "USD",
+		TwapDuration:           6 * time.Minute, // Change to 60 before release
+		ConvertSymbols:         []string{"usdc"},
+		PrimeCallTimeout:       30 * time.Second,
+		TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
+	}
+
+	go liquidator.RunLiquidator(config)
 
 	<-run
 }

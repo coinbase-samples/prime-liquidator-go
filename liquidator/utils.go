@@ -16,14 +16,7 @@
 
 package liquidator
 
-import (
-	"crypto/md5"
-	"fmt"
-	"strings"
-
-	"github.com/shopspring/decimal"
-)
-
+/*
 const twapMaxDiscountPercent = 0.1
 
 func calculateTwapLimitPrice(
@@ -135,3 +128,4 @@ func adjustOrderSize(amount, baseMin, baseMax, baseIncrement decimal.Decimal) de
 func generateUniqueId(params ...string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
 }
+*/

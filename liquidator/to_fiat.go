@@ -16,6 +16,7 @@
 
 package liquidator
 
+/*
 import (
 	"time"
 
@@ -26,10 +27,6 @@ import (
 var toConvertSymbols = map[string]bool{
 	"usdc": true,
 }
-
-type ProductLookup map[string]*prime.Product
-
-type WalletLookup map[string]*prime.Wallet
 
 // TODO: Make an env var
 const fiatCurrencySymbol = "USD"
@@ -60,3 +57,4 @@ func ConvertToFiat() {
 		time.Sleep(5 * time.Second)
 	}
 }
+*/

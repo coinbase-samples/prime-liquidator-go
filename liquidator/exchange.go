@@ -16,6 +16,7 @@
 
 package liquidator
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -28,6 +29,7 @@ import (
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/shopspring/decimal"
 )
+
 
 type ExchangeProductPrice struct {
 	Price string `json:"price"`
@@ -100,3 +102,4 @@ func currentExchangeProductPrice(productId string, timeout time.Duration) (decim
 
 	return price, nil
 }
+*/

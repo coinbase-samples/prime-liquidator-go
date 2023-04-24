@@ -16,6 +16,8 @@
 
 package liquidator
 
+/*
+
 import (
 	"fmt"
 	"strings"
@@ -141,3 +143,4 @@ func processAsset(
 
 	return nil
 }
+*/

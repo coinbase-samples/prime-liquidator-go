@@ -16,7 +16,7 @@ The application and code are only available for demonstration purposes.
 **Use of this sample application may cause a negative financial impact**
 
 When the application is running, it continuously monitors and converts crypto assets to USD.
-If the application is accidentally left running or mistakenly pointed at a unintended portfolio,
+If the application is accidentally left running or mistakenly pointed at an unintended portfolio,
 all of the assets in hot/trading wallets will be quickly liquidated.
 
 Sell orders are created with a one hour TWAP with the lowest tolerance (limit price) set at 10% below the

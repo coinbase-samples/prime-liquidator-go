@@ -29,4 +29,5 @@ type AppConfig struct {
 	ConvertSymbols         []string
 	PrimeCallTimeout       time.Duration
 	TwapMaxDiscountPercent decimal.Decimal
+	OrdersCacheSize        int
 }

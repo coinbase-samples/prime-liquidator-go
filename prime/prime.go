@@ -38,5 +38,4 @@ func init() {
 		}
 		primeV1ApiBaseUrl = baseUrl
 	}
-
 }

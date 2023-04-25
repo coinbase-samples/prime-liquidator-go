@@ -132,7 +132,6 @@ func (l Liquidator) processConversion(
 // processAsset takes an asset and either creates a sell order for fiat or
 // issues a conversion request if the asset is a stablecoin
 func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
-
 	if asset.IsFiat() {
 		return nil
 	}

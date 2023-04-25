@@ -17,11 +17,7 @@
 package caller
 
 import (
-	"time"
-
-	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
-	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
 )
 
@@ -31,23 +27,14 @@ type Caller interface {
 	PrimeDescribeProducts() (ProductLookup, error)
 	PrimeDescribeTradingBalances() ([]*prime.AssetBalances, error)
 	PrimeCreateConversion(sourceWallet, destinationWallet *prime.Wallet, amount decimal.Decimal) error
-	PrimeCreateTwapOrder(productId string, value, orderSize decimal.Decimal, asset *prime.AssetBalances, limitPrice decimal.Decimal, duration time.Duration) error
+
+	PrimeCreateTwapOrder(
+		productId string,
+		value,
+		orderSize,
+		limitPrice decimal.Decimal,
+		asset *prime.AssetBalances,
+	) error
+
 	PrimeCalculateOrderSize(product *prime.Product, amount, holds decimal.Decimal) (orderSize decimal.Decimal, err error)
-}
-
-type apiCall struct {
-	config      config.AppConfig
-	ordersCache *ttlcache.Cache
-}
-
-func NewCaller(config config.AppConfig) Caller {
-
-	ordersCache := ttlcache.NewCache()
-	ordersCache.SetTTL(config.TwapDuration)
-	ordersCache.SetCacheSizeLimit(config.OrdersCacheSize)
-
-	return apiCall{
-		config:      config,
-		ordersCache: ordersCache,
-	}
 }

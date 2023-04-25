@@ -22,12 +22,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/exchange"
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/google/uuid"
+	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 )
+
+type apiCall struct {
+	config      config.AppConfig
+	ordersCache *ttlcache.Cache
+}
+
+func NewCaller(config config.AppConfig) Caller {
+
+	ordersCache := ttlcache.NewCache()
+	ordersCache.SetTTL(config.TwapDuration)
+	ordersCache.SetCacheSizeLimit(config.OrdersCacheSize)
+
+	return apiCall{
+		config:      config,
+		ordersCache: ordersCache,
+	}
+}
 
 func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
@@ -186,11 +205,15 @@ func (ac apiCall) PrimeCreateConversion(
 func (ac apiCall) PrimeCreateTwapOrder(
 	productId string,
 	value,
-	orderSize decimal.Decimal,
-	asset *prime.AssetBalances,
+	orderSize,
 	limitPrice decimal.Decimal,
-	duration time.Duration,
+	asset *prime.AssetBalances,
 ) error {
+
+	holds, err := asset.HoldsNum()
+	if err != nil {
+		return err
+	}
 
 	clientOrderId := prime.GenerateUniqueId(
 		productId,
@@ -198,6 +221,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		prime.OrderTypeTwap,
 		prime.TimeInForceGoodUntilTime,
 		orderSize.String(),
+		holds.String(),
 	)
 
 	if _, exists := ac.ordersCache.Get(clientOrderId); exists == nil {
@@ -215,7 +239,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		orderSize,
 		asset,
 		limitPrice,
-		duration,
+		ac.config.TwapDuration,
 		clientOrderId,
 	)
 

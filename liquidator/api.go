@@ -252,7 +252,7 @@ func (ac ApiCall) createOrder(
 		)
 	}
 
-	log.Infof("new order created - id: %s", response.OrderId)
+	log.Infof("order created - id: %s - client order id: %s", response.OrderId, clientOrderId)
 
 	ac.ordersCache.Set(clientOrderId, response.OrderId)
 

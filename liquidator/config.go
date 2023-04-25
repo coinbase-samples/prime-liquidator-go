@@ -30,4 +30,5 @@ type AppConfig struct {
 	PrimeCallTimeout       time.Duration
 	TwapMaxDiscountPercent decimal.Decimal
 	OrdersCacheSize        int
+	StablecoinFiatDigits   int32
 }

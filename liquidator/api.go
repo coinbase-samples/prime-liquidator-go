@@ -171,7 +171,7 @@ func (ac ApiCall) createConversion(
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
 	defer cancel()
 
-	round := amount.RoundFloor(2)
+	round := amount.RoundFloor(ac.config.StablecoinFiatDigits)
 
 	if round.IsZero() {
 		return nil

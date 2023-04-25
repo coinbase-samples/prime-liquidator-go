@@ -57,6 +57,7 @@ func main() {
 		PrimeCallTimeout:       30 * time.Second,
 		TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
 		OrdersCacheSize:        1000,
+		StablecoinFiatDigits:   2,
 	}
 
 	go liquidator.RunLiquidator(config)

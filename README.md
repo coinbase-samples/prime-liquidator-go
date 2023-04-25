@@ -5,6 +5,12 @@
 The *Liquidator* sample application continuously monitors a [Coinbase Prime](https://prime.coinbase.com/) portfolio
 for crypto assets in hot/trading wallets and places sell orders or converts to USD/fiat.
 
+Sell orders deduct holds based on instrument, so if new assets are added while others are being liquidated, the
+application continues to create new orders if there are enough assets to sell. Additionally, if for some reason an order
+continuously fails to execute, there is an ID generated (client_order_id) from the sell attributes that is used to
+reduce the amount of spam/failing orders sent to Prime. Prime treats the client_order_id as idempotent for open orders and
+the ID is is cached in-process too.
+
 ## License
 
 The *Liquidator* sample application is free and open source and released under the [Apache License, Version 2.0](LICENSE).

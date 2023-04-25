@@ -201,9 +201,8 @@ func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
 		productId,
 		value,
 		orderSize,
-		asset,
 		limitPrice,
-		l.config.TwapDuration,
+		asset,
 	)
 }
 

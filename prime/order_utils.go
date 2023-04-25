@@ -42,6 +42,7 @@ func CalculateOrderSize(
 	} else {
 
 		orderSize = AdjustOrderSize(availableAmount, baseMin, baseMax, baseIncrement)
+
 	}
 
 	return

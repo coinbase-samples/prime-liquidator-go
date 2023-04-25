@@ -90,7 +90,7 @@ func (l *Liquidator) monitor() {
 			if err := l.processAsset(asset); err != nil {
 				log.Error(err)
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 		}
 
 		time.Sleep(5 * time.Second)
@@ -179,22 +179,16 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return nil
 	}
 
-	price, err := l.api.currentExchangeProductPrice(
-		strings.ToUpper(
-			fmt.Sprintf("%s-%s", asset.Symbol, l.config.FiatCurrencySymbol),
-		),
-	)
+	productId := fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
 
+	price, err := l.api.currentExchangeProductPrice(productId)
 	if err != nil {
-		return fmt.Errorf("cannot get exchange price: %s - err: %w", asset.Symbol, err)
+		return fmt.Errorf("cannot get exchange price: %s - err: %w", productId, err)
 	}
 
-	productId := fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), l.config.FiatCurrencySymbol)
-
-	value := amount.Mul(price)
-
-	if value.IsZero() {
-		return nil
+	product, found := l.products[productId]
+	if !found {
+		return fmt.Errorf("Unknown product id: %s", productId)
 	}
 
 	holds, err := asset.HoldsNum()
@@ -202,12 +196,34 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return err
 	}
 
-	orderSize, err := l.calculateOrderSize(productId, amount, holds)
+	orderSize, err := prime.CalculateOrderSize(product, amount, holds)
+	if err != nil {
+		return fmt.Errorf(
+			"cannot calculator order size - product: %s - amount: %v - holds: %v - err: %v",
+			product.Id,
+			amount,
+			holds,
+			err,
+		)
+	}
+
+	if orderSize.IsZero() {
+		return nil
+	}
+
+	value := price.Mul(orderSize)
+
+	if value.IsZero() {
+		return nil
+	}
+
+	quoteMin, err := product.QuoteMinSizeNum()
 	if err != nil {
 		return err
 	}
 
-	if orderSize.IsZero() {
+	// Ensure that that the order size is is equal to or greater than the quote min size
+	if value.Cmp(quoteMin) < 0 {
 		return nil
 	}
 
@@ -243,23 +259,6 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 	}
 
 	return nil
-}
-
-func (l Liquidator) calculateOrderSize(
-	productId string,
-	amount decimal.Decimal,
-	holds decimal.Decimal,
-) (orderSize decimal.Decimal, err error) {
-
-	product, found := l.products[productId]
-	if !found {
-		err = fmt.Errorf("Unknown product id: %s", productId)
-		return
-	}
-
-	orderSize, err = prime.CalculateOrderSize(product, amount, holds)
-
-	return
 }
 
 func (l Liquidator) adjustTwapLimitPrice(price, quoteIncrement decimal.Decimal) decimal.Decimal {

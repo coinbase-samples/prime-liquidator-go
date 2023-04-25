@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
-	"github.com/coinbase-samples/prime-liquidator-go/liquidator"
+	"github.com/coinbase-samples/prime-liquidator-go/monitor"
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
@@ -49,7 +49,7 @@ func main() {
 
 	log.Warn("watch for crypto assets in hot wallets/trading and sell")
 
-	config := liquidator.AppConfig{
+	config := config.AppConfig{
 		PortfolioId:            credentials.PortfolioId,
 		FiatCurrencySymbol:     "USD",
 		TwapDuration:           6 * time.Minute, // Change to 60 before release
@@ -60,7 +60,7 @@ func main() {
 		StablecoinFiatDigits:   2,
 	}
 
-	go liquidator.RunLiquidator(config)
+	go monitor.RunLiquidator(config)
 
 	<-run
 }

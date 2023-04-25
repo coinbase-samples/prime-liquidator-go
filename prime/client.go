@@ -118,8 +118,8 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 		Request: request,
 	}
 
-	if strings.ToLower(request.HttpMethod) != "get" && strings.ToLower(request.HttpMethod) != "post" {
-		response.Error = fmt.Errorf("HttpMethod must be GET or POST - received: %s", request.HttpMethod)
+	checkHttpMethod(request, response)
+	if response.Error != nil {
 		return response
 	}
 
@@ -211,6 +211,12 @@ func makeCall(ctx context.Context, request *apiRequest) *apiResponse {
 	}
 
 	return response
+}
+
+func checkHttpMethod(request *apiRequest, response *apiResponse) {
+	if strings.ToLower(request.HttpMethod) != strings.ToLower(http.MethodGet) && strings.ToLower(request.HttpMethod) != strings.ToLower(http.MethodPost) {
+		response.Error = fmt.Errorf("HttpMethod must be GET or POST - received: %s", request.HttpMethod)
+	}
 }
 
 func sign(path, body, method, signingKey string, t int64) string {

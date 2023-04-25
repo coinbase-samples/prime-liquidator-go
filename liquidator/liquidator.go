@@ -215,7 +215,6 @@ func (l Liquidator) calculateTwapLimitPrice(
 ) (limitPrice decimal.Decimal, err error) {
 
 	var quoteIncrement decimal.Decimal
-
 	if quoteIncrement, err = product.QuoteIncrementNum(); err != nil {
 		return
 	}

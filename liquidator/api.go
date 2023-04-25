@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023-present Coinbase Global, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package liquidator
 
 import (
@@ -11,6 +27,7 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
 	"github.com/google/uuid"
+	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +37,18 @@ type ExchangeProductPrice struct {
 }
 
 type ApiCall struct {
-	config AppConfig
+	config      AppConfig
+	ordersCache *ttlcache.Cache
+}
+
+func newApiCall(config AppConfig) (a ApiCall) {
+
+	a = ApiCall{config: config}
+
+	a.ordersCache = ttlcache.NewCache()
+	a.ordersCache.SetTTL(config.TwapDuration)
+	a.ordersCache.SetCacheSizeLimit(1000)
+	return
 }
 
 func (ac ApiCall) describeTradingWallets() (WalletLookup, error) {
@@ -30,7 +58,7 @@ func (ac ApiCall) describeTradingWallets() (WalletLookup, error) {
 
 	var cursor string
 
-	wallets := make(map[string]*prime.Wallet)
+	wallets := make(WalletLookup)
 
 	for {
 
@@ -48,7 +76,7 @@ func (ac ApiCall) describeTradingWallets() (WalletLookup, error) {
 		}
 
 		for _, wallet := range response.Wallets {
-			wallets[wallet.Symbol] = wallet
+			wallets.add(wallet)
 		}
 
 		if !response.HasNext() {
@@ -66,7 +94,7 @@ func (ac ApiCall) describeProducts() (ProductLookup, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
 	defer cancel()
 
-	products := make(map[string]*prime.Product)
+	products := make(ProductLookup)
 
 	var cursor string
 
@@ -83,7 +111,7 @@ func (ac ApiCall) describeProducts() (ProductLookup, error) {
 		}
 
 		for _, p := range response.Products {
-			products[p.Id] = p
+			products.add(p)
 		}
 
 		if !response.HasNext() {
@@ -94,6 +122,24 @@ func (ac ApiCall) describeProducts() (ProductLookup, error) {
 	}
 
 	return products, nil
+}
+
+func (ac ApiCall) calculateOrderSize(
+	product *prime.Product,
+	amount,
+	holds decimal.Decimal,
+) (orderSize decimal.Decimal, err error) {
+	orderSize, err = prime.CalculateOrderSize(product, amount, holds)
+	if err != nil {
+		err = fmt.Errorf(
+			"cannot calculator order size - product: %s - amount: %v - holds: %v - err: %v",
+			product.Id,
+			amount,
+			holds,
+			err,
+		)
+	}
+	return
 }
 
 func (ac ApiCall) describeTradingBalances() ([]*prime.AssetBalances, error) {
@@ -166,8 +212,19 @@ func (ac ApiCall) createOrder(
 	asset *prime.AssetBalances,
 	limitPrice decimal.Decimal,
 	duration time.Duration,
-	clientOrderId string,
-) (string, error) {
+) error {
+
+	clientOrderId := prime.GenerateUniqueId(
+		productId,
+		prime.OrderSideSell,
+		prime.OrderTypeTwap,
+		prime.TimeInForceGoodUntilTime,
+		orderSize.String(),
+	)
+
+	if _, exists := ac.ordersCache.Get(clientOrderId); exists == nil {
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
 	defer cancel()
@@ -186,7 +243,7 @@ func (ac ApiCall) createOrder(
 
 	response, err := prime.CreateOrder(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf(
+		return fmt.Errorf(
 			"unable to create order - client order id: %s - symbol: %s - size: %v - err: %w",
 			clientOrderId,
 			asset.Symbol,
@@ -197,7 +254,9 @@ func (ac ApiCall) createOrder(
 
 	log.Infof("new order created - id: %s", response.OrderId)
 
-	return response.OrderId, nil
+	ac.ordersCache.Set(clientOrderId, response.OrderId)
+
+	return nil
 }
 
 func (ac ApiCall) createOrderRequest(

@@ -22,34 +22,21 @@ import (
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/prime"
-	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 )
 
-type AppConfig struct {
-	PortfolioId            string
-	FiatCurrencySymbol     string
-	TwapDuration           time.Duration
-	ConvertSymbols         []string
-	PrimeCallTimeout       time.Duration
-	TwapMaxDiscountPercent decimal.Decimal
-}
-
-type ProductLookup map[string]*prime.Product
-
-type WalletLookup map[string]*prime.Wallet
-
 type Liquidator struct {
-	config           AppConfig
-	toConvertSymbols map[string]bool
-	balances         []*prime.AssetBalances
-	products         ProductLookup
-	wallets          WalletLookup
-	ordersCache      *ttlcache.Cache
-	api              ApiCall
+	config         AppConfig
+	convertSymbols ConvertSymbols
+	balances       []*prime.AssetBalances
+	products       ProductLookup
+	wallets        WalletLookup
+	api            ApiCall
 }
 
+// RunLiquidator continuously assets and changes them into
+// fiat.
 func RunLiquidator(config AppConfig) {
 
 	l := newLiquidator(config)
@@ -57,25 +44,26 @@ func RunLiquidator(config AppConfig) {
 	l.monitor()
 }
 
+// newLiquidator returns a new Liquidator struct pointer.
 func newLiquidator(config AppConfig) (l *Liquidator) {
 
 	l = &Liquidator{
-		config:           config,
-		toConvertSymbols: make(map[string]bool),
-		api:              ApiCall{config: config},
+		config:         config,
+		convertSymbols: make(ConvertSymbols),
+		api:            newApiCall(config),
 	}
 
 	for _, s := range config.ConvertSymbols {
-		l.toConvertSymbols[s] = true
+		l.convertSymbols.add(s)
 	}
-
-	l.ordersCache = ttlcache.NewCache()
-	l.ordersCache.SetTTL(config.TwapDuration)
-	l.ordersCache.SetCacheSizeLimit(1000)
 
 	return
 }
 
+// monitor continuously loops through the current trading balances
+// and processes the assets. New sell TWAP orders are created if the
+// asset is tradeable. If the asset is a stablecoin, then a conversion
+// request is created.
 func (l *Liquidator) monitor() {
 
 	for {
@@ -97,6 +85,8 @@ func (l *Liquidator) monitor() {
 	}
 }
 
+// describeCurrentState lookups up the trading wallets, balances,
+// and products and sets updates the state on the struct.
 func (l *Liquidator) describeCurrentState() (err error) {
 
 	l.wallets, err = l.api.describeTradingWallets()
@@ -117,32 +107,29 @@ func (l *Liquidator) describeCurrentState() (err error) {
 	return
 }
 
-func (l Liquidator) calculateTwapLimitPrice(
-	productId string,
-	price decimal.Decimal,
-) (limitPrice decimal.Decimal, err error) {
+// processConversion looks up the stablecoin and fiat wallets and then
+// submits a Prime conversion request.
+func (l Liquidator) processConversion(
+	amount decimal.Decimal,
+	asset *prime.AssetBalances,
+) error {
 
-	var (
-		quoteIncrement decimal.Decimal
-	)
-
-	product, found := l.products[productId]
-	if !found {
-		err = fmt.Errorf("Unknown product id: %s", productId)
-		return
+	fiatWallet := l.wallets.lookup(l.config.FiatCurrencySymbol)
+	if fiatWallet == nil {
+		return fmt.Errorf("fiat wallet not found: %s", l.config.FiatCurrencySymbol)
 	}
 
-	if quoteIncrement, err = product.QuoteIncrementNum(); err != nil {
-		return
+	stablecoinWallet := l.wallets.lookup(asset.Symbol)
+	if stablecoinWallet == nil {
+		return fmt.Errorf("stablecoin wallet not found: %s", asset.Symbol)
 	}
 
-	maxDiscount := price.Mul(l.config.TwapMaxDiscountPercent)
-
-	limitPrice = l.adjustTwapLimitPrice(price.Sub(maxDiscount), quoteIncrement)
-	return
+	return l.api.createConversion(stablecoinWallet, fiatWallet, amount)
 }
 
-func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
+// processAsset takes an asset and either creates a sell order for fiat or
+// issues a conversion request if the asset is a stablecoin
+func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
 
 	if asset.IsFiat() {
 		return nil
@@ -158,25 +145,8 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 	}
 
 	// Check for stablecoins that need to be converted
-	if _, found := l.toConvertSymbols[asset.Symbol]; found {
-
-		fiatWallet, found := l.wallets[l.config.FiatCurrencySymbol]
-
-		if !found {
-			return fmt.Errorf("fiat wallet not found: %s", l.config.FiatCurrencySymbol)
-		}
-
-		stablecoinWallet, found := l.wallets[strings.ToUpper(asset.Symbol)]
-
-		if !found {
-			return fmt.Errorf("stablecoin wallet not found: %s", asset.Symbol)
-		}
-
-		if err := l.api.createConversion(stablecoinWallet, fiatWallet, amount); err != nil {
-			return err
-		}
-
-		return nil
+	if l.convertSymbols.is(asset.Symbol) {
+		return l.processConversion(amount, asset)
 	}
 
 	productId := fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
@@ -186,8 +156,8 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return fmt.Errorf("cannot get exchange price: %s - err: %w", productId, err)
 	}
 
-	product, found := l.products[productId]
-	if !found {
+	product := l.products.lookup(productId)
+	if product == nil {
 		return fmt.Errorf("Unknown product id: %s", productId)
 	}
 
@@ -196,15 +166,9 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return err
 	}
 
-	orderSize, err := prime.CalculateOrderSize(product, amount, holds)
+	orderSize, err := l.api.calculateOrderSize(product, amount, holds)
 	if err != nil {
-		return fmt.Errorf(
-			"cannot calculator order size - product: %s - amount: %v - holds: %v - err: %v",
-			product.Id,
-			amount,
-			holds,
-			err,
-		)
+		return err
 	}
 
 	if orderSize.IsZero() {
@@ -222,46 +186,50 @@ func (l *Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return err
 	}
 
-	// Ensure that that the order size is is equal to or greater than the quote min size
+	// Ensure that that the order value is is equal to or greater than the quote min size
 	if value.Cmp(quoteMin) < 0 {
 		return nil
 	}
 
-	limitPrice, err := l.calculateTwapLimitPrice(productId, price)
+	limitPrice, err := l.calculateTwapLimitPrice(product, price)
 	if err != nil {
 		return err
 	}
 
-	clientOrderId := prime.GenerateUniqueId(
-		productId,
-		prime.OrderSideSell,
-		prime.OrderTypeTwap,
-		prime.TimeInForceGoodUntilTime,
-		orderSize.String(),
-	)
-
-	if _, exists := l.ordersCache.Get(clientOrderId); exists == nil {
-		return nil
-	}
-
-	if orderId, err := l.api.createOrder(
+	return l.api.createOrder(
 		productId,
 		value,
 		orderSize,
 		asset,
 		limitPrice,
 		l.config.TwapDuration,
-		clientOrderId,
-	); err != nil {
-		return err
-	} else {
-		l.ordersCache.Set(clientOrderId, orderId)
-	}
-
-	return nil
+	)
 }
 
-func (l Liquidator) adjustTwapLimitPrice(price, quoteIncrement decimal.Decimal) decimal.Decimal {
+// calculateTwapLimitPrice looks at the product, current
+// price, and max discount and returns the adjusted TWAP
+// price X% the most recent Exchange lookup.
+func (l Liquidator) calculateTwapLimitPrice(
+	product *prime.Product,
+	price decimal.Decimal,
+) (limitPrice decimal.Decimal, err error) {
+
+	var quoteIncrement decimal.Decimal
+
+	if quoteIncrement, err = product.QuoteIncrementNum(); err != nil {
+		return
+	}
+
+	maxDiscount := price.Mul(l.config.TwapMaxDiscountPercent)
+
+	limitPrice = l.adjustTwapLimitPrice(price.Sub(maxDiscount), quoteIncrement)
+	return
+}
+
+func (l Liquidator) adjustTwapLimitPrice(
+	price,
+	quoteIncrement decimal.Decimal,
+) decimal.Decimal {
 	quo, rem := price.QuoRem(quoteIncrement, 0)
 
 	if rem.IsZero() {

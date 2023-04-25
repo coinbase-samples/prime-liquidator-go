@@ -16,4 +16,27 @@
 
 package prime
 
-const primeV1ApiBaseUrl = "https://api.prime.coinbase.com/v1"
+import (
+	"net/url"
+	"os"
+
+	log "github.com/sirupsen/logrus"
+)
+
+var primeV1ApiBaseUrl = "https://api.prime.coinbase.com/v1"
+
+func init() {
+	baseUrl := os.Getenv("PRIME_SDK_BASE_URL")
+	if len(baseUrl) > 0 {
+		_, err := url.Parse(baseUrl)
+		if err != nil {
+			log.Fatalf(
+				"cannot parse PRIME_SDK_BASE_URL - received: %s - err: %v",
+				baseUrl,
+				err,
+			)
+		}
+		primeV1ApiBaseUrl = baseUrl
+	}
+
+}

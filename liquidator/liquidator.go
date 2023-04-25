@@ -149,7 +149,7 @@ func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return l.processConversion(amount, asset)
 	}
 
-	productId := fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
+	productId := l.productId(asset)
 
 	price, err := l.api.currentExchangeProductPrice(productId)
 	if err != nil {
@@ -237,4 +237,8 @@ func (l Liquidator) adjustTwapLimitPrice(
 	}
 
 	return quo.Floor().Mul(quoteIncrement)
+}
+
+func (l Liquidator) productId(asset *prime.AssetBalances) string {
+	return fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
 }

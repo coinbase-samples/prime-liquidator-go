@@ -24,33 +24,37 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/exchange"
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/util"
+	"go.uber.org/zap"
+
+	prime "github.com/coinbase-samples/prime-sdk-go"
 	"github.com/google/uuid"
 	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
-	log "github.com/sirupsen/logrus"
 )
 
 type apiCall struct {
-	config      config.AppConfig
+	config      *config.AppConfig
 	ordersCache *ttlcache.Cache
+	portfolioId string
 }
 
-func NewCaller(config config.AppConfig) Caller {
+func NewCaller(config *config.AppConfig) Caller {
 
 	ordersCache := ttlcache.NewCache()
-	ordersCache.SetTTL(config.TwapDuration)
+	ordersCache.SetTTL(config.TwapDuration())
 	ordersCache.SetCacheSizeLimit(config.OrdersCacheSize)
 
 	return apiCall{
 		config:      config,
 		ordersCache: ordersCache,
+		portfolioId: config.PrimeClient.Credentials.PortfolioId,
 	}
 }
 
 func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
 	var cursor string
@@ -59,15 +63,15 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
 	for {
 
-		request := &prime.DescribeWalletsRequest{
-			PortfolioId: ac.config.PortfolioId,
+		request := &prime.ListWalletsRequest{
+			PortfolioId: ac.portfolioId,
 			Type:        prime.WalletTypeTrading,
-			IteratorParams: &prime.IteratorParams{
+			Pagination: &prime.PaginationParams{
 				Cursor: cursor,
 			},
 		}
 
-		response, err := prime.DescribeWallets(ctx, request)
+		response, err := ac.config.PrimeClient.ListWallets(ctx, request)
 		if err != nil {
 			return wallets, err
 		}
@@ -76,7 +80,7 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 			wallets.Add(wallet)
 		}
 
-		if !response.HasNext() {
+		if !response.Pagination.HasNext {
 			break
 		}
 
@@ -88,7 +92,7 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
 func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
 	products := make(ProductLookup)
@@ -97,12 +101,12 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
 	for {
 
-		request := &prime.DescribeProductsRequest{
-			PortfolioId:    ac.config.PortfolioId,
-			IteratorParams: &prime.IteratorParams{Cursor: cursor},
+		request := &prime.ListProductsRequest{
+			PortfolioId: ac.portfolioId,
+			Pagination:  &prime.PaginationParams{Cursor: cursor},
 		}
 
-		response, err := prime.DescribeProducts(ctx, request)
+		response, err := ac.config.PrimeClient.ListProducts(ctx, request)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +115,7 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 			products.Add(p)
 		}
 
-		if !response.HasNext() {
+		if !response.Pagination.HasNext {
 			break
 		}
 
@@ -139,15 +143,15 @@ func (ac apiCall) PrimeCalculateOrderSize(
 	return
 }
 
-func (ac apiCall) PrimeDescribeTradingBalances() ([]*prime.AssetBalances, error) {
+func (ac apiCall) PrimeDescribeTradingBalances() ([]*prime.Balance, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	response, err := prime.DescribeBalances(
+	response, err := ac.config.PrimeClient.ListWalletBalances(
 		ctx,
-		&prime.DescribeBalancesRequest{
-			PortfolioId: ac.config.PortfolioId,
+		&prime.ListWalletBalancesRequest{
+			PortfolioId: ac.portfolioId,
 			Type:        prime.BalanceTypeTrading,
 		},
 	)
@@ -165,7 +169,7 @@ func (ac apiCall) PrimeCreateConversion(
 	amount decimal.Decimal,
 ) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
 	round := amount.RoundFloor(ac.config.StablecoinFiatDigits)
@@ -174,29 +178,34 @@ func (ac apiCall) PrimeCreateConversion(
 		return nil
 	}
 
-	log.Infof("converting %s to %s - amount: %v", sourceWallet.Symbol, destinationWallet.Symbol, round)
+	zap.L().Info(
+		"fiat conversion",
+		zap.String("sourceSymbol", sourceWallet.Symbol),
+		zap.String("destinationSymbol", destinationWallet.Symbol),
+		zap.Any("amount", round),
+	)
 
 	request := &prime.CreateConversionRequest{
-		PortfolioId:         ac.config.PortfolioId,
+		PortfolioId:         ac.portfolioId,
 		SourceWalletId:      sourceWallet.Id,
 		DestinationWalletId: destinationWallet.Id,
 		SourceSymbol:        strings.ToUpper(sourceWallet.Symbol),
 		DestinationSymbol:   strings.ToUpper(destinationWallet.Symbol),
 		Amount:              round.String(),
-		IdempotencyId:       uuid.New().String(),
+		IdempotencyKey:      uuid.New().String(),
 	}
 
-	response, err := prime.CreateConversion(ctx, request)
+	response, err := ac.config.PrimeClient.CreateConversion(ctx, request)
 	if err != nil {
 		return err
 	}
 
-	log.Infof(
-		"convert request submitted - %s to %s - amount: %v - activity id: %s",
-		sourceWallet.Symbol,
-		destinationWallet.Symbol,
-		round,
-		response.ActivityId,
+	zap.L().Info(
+		"fiat conversion submitted",
+		zap.String("sourceSymbol", sourceWallet.Symbol),
+		zap.String("destinationSymbol", destinationWallet.Symbol),
+		zap.Any("amount", round),
+		zap.String("activityId", response.ActivityId),
 	)
 
 	return nil
@@ -207,7 +216,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 	value,
 	orderSize,
 	limitPrice decimal.Decimal,
-	asset *prime.AssetBalances,
+	asset *prime.Balance,
 ) error {
 
 	holds, err := asset.HoldsNum()
@@ -215,7 +224,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		return err
 	}
 
-	clientOrderId := prime.GenerateUniqueId(
+	clientOrderId := util.GenerateUniqueId(
 		productId,
 		prime.OrderSideSell,
 		prime.OrderTypeTwap,
@@ -228,10 +237,16 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	log.Infof("create order request - asset: %s - balance: %s - value: %v - order size: %v", asset.Symbol, asset.Amount, value, orderSize)
+	zap.L().Info(
+		"create order request",
+		zap.String("symbol", asset.Symbol),
+		zap.Any("amount", asset.Amount),
+		zap.Any("value", value),
+		zap.Any("orderSize", orderSize),
+	)
 
 	request := ac.createOrderRequest(
 		productId,
@@ -239,14 +254,14 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		orderSize,
 		asset,
 		limitPrice,
-		ac.config.TwapDuration,
+		ac.config.TwapDuration(),
 		clientOrderId,
 	)
 
-	response, err := prime.CreateOrder(ctx, request)
+	response, err := ac.config.PrimeClient.CreateOrder(ctx, request)
 	if err != nil {
 		return fmt.Errorf(
-			"unable to create order - client order id: %s - symbol: %s - size: %v - err: %w",
+			"unable to create order - client order id: %s - symbol: %s - size: %v %w",
 			clientOrderId,
 			asset.Symbol,
 			orderSize,
@@ -254,7 +269,11 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		)
 	}
 
-	log.Infof("order created - id: %s - client order id: %s", response.OrderId, clientOrderId)
+	zap.L().Info(
+		"order created",
+		zap.String("orderId", response.OrderId),
+		zap.String("clientOrderId", clientOrderId),
+	)
 
 	ac.ordersCache.Set(clientOrderId, response.OrderId)
 
@@ -265,7 +284,7 @@ func (ac apiCall) createOrderRequest(
 	productId string,
 	value,
 	orderSize decimal.Decimal,
-	asset *prime.AssetBalances,
+	asset *prime.Balance,
 	limitPrice decimal.Decimal,
 	duration time.Duration,
 	clientOrderId string,
@@ -275,19 +294,21 @@ func (ac apiCall) createOrderRequest(
 	endTime := startTime.Add(duration)
 
 	return &prime.CreateOrderRequest{
-		PortfolioId:   ac.config.PortfolioId,
-		ProductId:     productId,
-		Side:          prime.OrderSideSell,
-		Type:          prime.OrderTypeTwap,
-		TimeInForce:   prime.TimeInForceGoodUntilTime,
-		ClientOrderId: clientOrderId,
-		BaseQuantity:  orderSize.String(),
-		LimitPrice:    limitPrice.String(),
-		StartTime:     startTime.Format("2006-01-02T15:04:05Z"),
-		ExpiryTime:    endTime.Format("2006-01-02T15:04:05Z"),
+		Order: &prime.Order{
+			PortfolioId:   ac.portfolioId,
+			ProductId:     productId,
+			Side:          prime.OrderSideSell,
+			Type:          prime.OrderTypeTwap,
+			TimeInForce:   prime.TimeInForceGoodUntilTime,
+			ClientOrderId: clientOrderId,
+			BaseQuantity:  orderSize.String(),
+			LimitPrice:    limitPrice.String(),
+			StartTime:     startTime.Format("2006-01-02T15:04:05Z"),
+			ExpiryTime:    endTime.Format("2006-01-02T15:04:05Z"),
+		},
 	}
 }
 
 func (ac apiCall) ExchangeCurrentProductPrice(productId string) (decimal.Decimal, error) {
-	return exchange.CurrentProductPrice(productId, ac.config.PrimeCallTimeout)
+	return exchange.CurrentProductPrice(productId, ac.config.PrimeCallTimeout(), ac.config.HttpClient)
 }

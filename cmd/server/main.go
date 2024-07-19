@@ -20,13 +20,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor"
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
-	"github.com/shopspring/decimal"
-	log "github.com/sirupsen/logrus"
+	prime "github.com/coinbase-samples/prime-sdk-go"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -34,33 +32,51 @@ func main() {
 	run := make(chan os.Signal, 1)
 	signal.Notify(run, os.Interrupt, syscall.SIGTERM)
 
-	config.LogInit()
+	log := config.LogInit("prime-liquidator")
+	zap.ReplaceGlobals(log)
+	defer log.Sync()
+
+	log.Info("prime-liquidator", zap.String("state", "starting"))
 
 	if err := os.Setenv("TZ", "UTC"); err != nil {
-		log.Fatalf("Cannot set time zone: UTC: %v", err)
+		log.Fatal("cannot set time zone: UTC", zap.Error(err))
 	}
 
-	log.Info("starting daemon")
+	if err := os.Setenv("TZ", "UTC"); err != nil {
+		log.Fatal("Cannot set time zone: UTC", zap.Error(err))
+	}
 
-	credentials, err := prime.InitCredentials()
+	credentials, err := prime.ReadEnvCredentials("PRIME_CREDENTIALS")
 	if err != nil {
-		log.Fatalf("unable to init prime credentials: %v", err)
+		log.Fatal("cannot init the prime credentials", zap.Error(err))
 	}
 
-	log.Warn("watch for crypto assets in hot wallets/trading and sell")
+	/*
+		config := config.AppConfig{
+			PortfolioId:            credentials.PortfolioId,
+			FiatCurrencySymbol:     "USD",
+			TwapDuration:           6 * time.Minute, // Change to 60 before release
+			ConvertSymbols:         []string{"usdc"},
+			PrimeCallTimeout:       30 * time.Second,
+			TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
+			OrdersCacheSize:        1000,
+			StablecoinFiatDigits:   2,
+		}
+	*/
 
-	config := config.AppConfig{
-		PortfolioId:            credentials.PortfolioId,
-		FiatCurrencySymbol:     "USD",
-		TwapDuration:           6 * time.Minute, // Change to 60 before release
-		ConvertSymbols:         []string{"usdc"},
-		PrimeCallTimeout:       30 * time.Second,
-		TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
-		OrdersCacheSize:        1000,
-		StablecoinFiatDigits:   2,
+	appConfig := &config.AppConfig{}
+
+	if err := config.SetupAppConfig(appConfig); err != nil {
+		log.Fatal("cannot setup app config", zap.Error(err))
 	}
 
-	go monitor.RunLiquidator(config)
+	appConfig.PrimeClient = prime.NewClient(credentials, *appConfig.HttpClient)
+
+	log.Warn("watch for crypto assets in hot/trading wallets and sell")
+
+	go monitor.RunLiquidator(appConfig)
+
+	log.Info("prime-liquidator", zap.String("state", "started"))
 
 	<-run
 }

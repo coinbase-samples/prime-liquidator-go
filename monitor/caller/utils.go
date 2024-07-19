@@ -19,7 +19,7 @@ package caller
 import (
 	"strings"
 
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	prime "github.com/coinbase-samples/prime-sdk-go"
 )
 
 type ProductLookup map[string]*prime.Product

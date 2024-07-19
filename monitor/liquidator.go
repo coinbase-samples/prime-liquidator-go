@@ -23,15 +23,16 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor/caller"
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	"github.com/coinbase-samples/prime-liquidator-go/util"
+	prime "github.com/coinbase-samples/prime-sdk-go"
 	"github.com/shopspring/decimal"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 type Liquidator struct {
-	config         config.AppConfig
+	config         *config.AppConfig
 	convertSymbols caller.ConvertSymbols
-	balances       []*prime.AssetBalances
+	balances       []*prime.Balance
 	products       caller.ProductLookup
 	wallets        caller.WalletLookup
 	call           caller.Caller
@@ -39,7 +40,7 @@ type Liquidator struct {
 
 // RunLiquidator continuously assets and changes them into
 // fiat.
-func RunLiquidator(config config.AppConfig) {
+func RunLiquidator(config *config.AppConfig) {
 
 	l := newLiquidator(config)
 
@@ -47,7 +48,7 @@ func RunLiquidator(config config.AppConfig) {
 }
 
 // newLiquidator returns a new Liquidator struct pointer.
-func newLiquidator(config config.AppConfig) (l *Liquidator) {
+func newLiquidator(config *config.AppConfig) (l *Liquidator) {
 
 	l = &Liquidator{
 		config:         config,
@@ -71,14 +72,14 @@ func (l *Liquidator) monitor() {
 	for {
 
 		if err := l.describeCurrentState(); err != nil {
-			log.Error(err)
+			zap.L().Error("unable to describe current state", zap.Error(err))
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
 		for _, asset := range l.balances {
 			if err := l.processAsset(asset); err != nil {
-				log.Error(err)
+				zap.L().Error("unable to process assets", zap.Error(err))
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -113,7 +114,7 @@ func (l *Liquidator) describeCurrentState() (err error) {
 // submits a Prime conversion request.
 func (l Liquidator) processConversion(
 	amount decimal.Decimal,
-	asset *prime.AssetBalances,
+	asset *prime.Balance,
 ) error {
 
 	fiatWallet := l.wallets.Lookup(l.config.FiatCurrencySymbol)
@@ -131,8 +132,8 @@ func (l Liquidator) processConversion(
 
 // processAsset takes an asset and either creates a sell order for fiat or
 // issues a conversion request if the asset is a stablecoin
-func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
-	if asset.IsFiat() {
+func (l Liquidator) processAsset(asset *prime.Balance) error {
+	if util.IsFiat(asset.Symbol) {
 		return nil
 	}
 
@@ -238,6 +239,6 @@ func (l Liquidator) adjustTwapLimitPrice(
 	return quo.Floor().Mul(quoteIncrement)
 }
 
-func (l Liquidator) productId(asset *prime.AssetBalances) string {
+func (l Liquidator) productId(asset *prime.Balance) string {
 	return fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
 }

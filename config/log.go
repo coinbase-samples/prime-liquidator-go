@@ -19,13 +19,24 @@ package config
 import (
 	"os"
 
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-func LogInit() {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetReportCaller(true)
-	logLevel, _ := log.ParseLevel("info")
-	log.SetLevel(logLevel)
-	log.SetOutput(os.Stdout)
+func LogInit(taskName string) *zap.Logger {
+
+	log := zap.Must(zap.NewProduction())
+
+	log.Sync()
+
+	config := zap.NewProductionEncoderConfig()
+	config.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	encoder := zapcore.NewJSONEncoder(config)
+
+	core := zapcore.NewTee(
+		zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zap.InfoLevel),
+	)
+
+	return zap.New(core, zap.AddCaller())
 }

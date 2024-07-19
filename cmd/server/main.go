@@ -59,7 +59,6 @@ func main() {
 			ConvertSymbols:         []string{"usdc"},
 			PrimeCallTimeout:       30 * time.Second,
 			TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
-			OrdersCacheSize:        1000,
 			StablecoinFiatDigits:   2,
 		}
 	*/

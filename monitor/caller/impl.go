@@ -43,7 +43,7 @@ func NewCaller(config *config.AppConfig) Caller {
 
 	ordersCache := ttlcache.NewCache()
 	ordersCache.SetTTL(config.TwapDuration())
-	ordersCache.SetCacheSizeLimit(config.OrdersCacheSize)
+	ordersCache.SetCacheSizeLimit(config.OrdersCacheSize())
 
 	return apiCall{
 		config:      config,

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	prime "github.com/coinbase-samples/prime-sdk-go"
@@ -43,11 +44,10 @@ type AppConfig struct {
 	FiatCurrencySymbol          string `mapstructure:"FIAT_CURRENCY_SYMBOL"`
 	TwapDurationInMinutes       string `mapstructure:"TWAP_DURATION"`
 	PrimeCallTimeoutInSeconds   string `mapstructure:"PRIME_CALL_TIMEOUT"`
-
-	ConvertSymbols         []string
-	TwapMaxDiscountPercent decimal.Decimal
-	OrdersCacheSize        int
-	StablecoinFiatDigits   int32
+	OrdersCacheSizeInItems      string `mapstructure:"ORDERS_CACHE_SIZE"`
+	ConvertSymbolsArray         string `mapstructure:"CONVERT_SYMBOLS"`
+	TwapMaxDiscountPercent      decimal.Decimal
+	StablecoinFiatDigits        int32
 }
 
 func (a AppConfig) IsLocalEnv() bool {
@@ -75,6 +75,8 @@ func SetupAppConfig(app *AppConfig) error {
 	viper.SetDefault("HTTP_TLS_HANDSHAKE", "5")
 
 	viper.SetDefault("FIAT_CURRENCY_SYMBOL", "USD")
+	viper.SetDefault("ORDERS_CACHE_SIZE", "1000")
+	viper.SetDefault("CONVERT_SYMBOLS", "usdc")
 
 	viper.ReadInConfig()
 
@@ -89,8 +91,15 @@ func SetupAppConfig(app *AppConfig) error {
 
 	app.HttpClient = httpClient
 
+	app.TwapMaxDiscountPercent = decimal.NewFromFloat32(0.1)
+	app.StablecoinFiatDigits = 2
+
 	return nil
 
+}
+
+func (a AppConfig) ConvertSymbols() []string {
+	return strings.Split(a.ConvertSymbolsArray, ",")
 }
 
 func (a AppConfig) TwapDuration() time.Duration {
@@ -119,6 +128,10 @@ func (a AppConfig) HttpIdleConn() time.Duration {
 
 func (a AppConfig) HttpResponseHeader() time.Duration {
 	return convertStrIntToDurationOrFatal(a.HttpResponseHeaderInSeconds, "HttpResponseHeaderInSeconds", time.Second)
+}
+
+func (a AppConfig) OrdersCacheSize() int {
+	return convertStrIntOrFatal(a.OrdersCacheSizeInItems, "OrdersCacheSizeInItems")
 }
 
 func (a AppConfig) HttpTLSHandshake() time.Duration {

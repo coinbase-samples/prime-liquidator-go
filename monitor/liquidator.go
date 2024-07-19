@@ -56,7 +56,7 @@ func newLiquidator(config *config.AppConfig) (l *Liquidator) {
 		call:           caller.NewCaller(config),
 	}
 
-	for _, s := range config.ConvertSymbols {
+	for _, s := range config.ConvertSymbols() {
 		l.convertSymbols.Add(s)
 	}
 

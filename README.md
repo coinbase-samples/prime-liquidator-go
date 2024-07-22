@@ -99,8 +99,6 @@ make update-aws-stack ENV_NAME=dev PROFILE=default REGION=us-east-1
 
 This command deploys the container image specified in the *DockerImageUri* and starts listening for new Prime activities.
 
-To validate, perform some actions in the Coinbase Prime application, and then review the SQS queue and/or the S3 bucket where Firehose persists.
-
 ## Building
 
 To build the sample application, ensure that [Go](https://go.dev/) 1.21+ is installed and then run:

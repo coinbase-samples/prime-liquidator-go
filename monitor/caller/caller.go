@@ -36,5 +36,12 @@ type Caller interface {
 		asset *prime.Balance,
 	) error
 
+	PrimeCreateMarketOrder(
+		productId string,
+		value,
+		orderSize decimal.Decimal,
+		asset *prime.Balance,
+	) error
+
 	PrimeCalculateOrderSize(product *prime.Product, amount, holds decimal.Decimal) (orderSize decimal.Decimal, err error)
 }

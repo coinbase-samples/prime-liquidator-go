@@ -193,6 +193,12 @@ func (l Liquidator) processAsset(asset *prime.Balance) error {
 		return nil
 	}
 
+	// Check to see if the size of the order fits into the TWAP requirements
+
+	if meetsTwapRequirements(value, l.config.TwapMinNotional(), l.config.TwapDuration()) {
+
+	}
+
 	limitPrice, err := l.calculateTwapLimitPrice(product, price)
 	if err != nil {
 		return err

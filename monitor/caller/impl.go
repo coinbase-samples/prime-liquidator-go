@@ -211,6 +211,91 @@ func (ac apiCall) PrimeCreateConversion(
 	return nil
 }
 
+func (ac apiCall) PrimeCreateMarketOrder(
+	productId string,
+	value,
+	orderSize decimal.Decimal,
+	asset *prime.Balance,
+) error {
+	holds, err := asset.HoldsNum()
+	if err != nil {
+		return err
+	}
+
+	clientOrderId := util.GenerateUniqueId(
+		productId,
+		prime.OrderSideSell,
+		prime.OrderTypeMarket,
+		prime.TimeInForceGoodUntilTime,
+		orderSize.String(),
+		holds.String(),
+	)
+
+	if _, exists := ac.ordersCache.Get(clientOrderId); exists == nil {
+		return nil
+	}
+
+	zap.L().Info(
+		"create market order request",
+		zap.String("symbol", asset.Symbol),
+		zap.Any("amount", asset.Amount),
+		zap.Any("value", value),
+		zap.Any("orderSize", orderSize),
+	)
+
+	request := ac.createMarketOrderRequest(
+		productId,
+		value,
+		orderSize,
+		asset,
+		clientOrderId,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+	defer cancel()
+
+	response, err := ac.config.PrimeClient.CreateOrder(ctx, request)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create market order - client order id: %s - symbol: %s - size: %v %w",
+			clientOrderId,
+			asset.Symbol,
+			orderSize,
+			err,
+		)
+	}
+
+	ac.ordersCache.Set(clientOrderId, response.OrderId)
+
+	zap.L().Info(
+		"market order created",
+		zap.String("orderId", response.OrderId),
+		zap.String("clientOrderId", clientOrderId),
+	)
+
+	return nil
+}
+
+func (ac apiCall) createMarketOrderRequest(
+	productId string,
+	value,
+	orderSize decimal.Decimal,
+	asset *prime.Balance,
+	clientOrderId string,
+) *prime.CreateOrderRequest {
+
+	return &prime.CreateOrderRequest{
+		Order: &prime.Order{
+			PortfolioId:   ac.portfolioId,
+			ProductId:     productId,
+			Side:          prime.OrderSideSell,
+			Type:          prime.OrderTypeMarket,
+			ClientOrderId: clientOrderId,
+			BaseQuantity:  orderSize.String(),
+		},
+	}
+}
+
 func (ac apiCall) PrimeCreateTwapOrder(
 	productId string,
 	value,
@@ -237,18 +322,15 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	zap.L().Info(
-		"create order request",
+		"create twap order request",
 		zap.String("symbol", asset.Symbol),
 		zap.Any("amount", asset.Amount),
 		zap.Any("value", value),
 		zap.Any("orderSize", orderSize),
 	)
 
-	request := ac.createOrderRequest(
+	request := ac.createTwapOrderRequest(
 		productId,
 		value,
 		orderSize,
@@ -258,10 +340,13 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		clientOrderId,
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+	defer cancel()
+
 	response, err := ac.config.PrimeClient.CreateOrder(ctx, request)
 	if err != nil {
 		return fmt.Errorf(
-			"unable to create order - client order id: %s - symbol: %s - size: %v %w",
+			"unable to create twap order - client order id: %s - symbol: %s - size: %v %w",
 			clientOrderId,
 			asset.Symbol,
 			orderSize,
@@ -269,18 +354,18 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		)
 	}
 
+	ac.ordersCache.Set(clientOrderId, response.OrderId)
+
 	zap.L().Info(
-		"order created",
+		"twap order created",
 		zap.String("orderId", response.OrderId),
 		zap.String("clientOrderId", clientOrderId),
 	)
 
-	ac.ordersCache.Set(clientOrderId, response.OrderId)
-
 	return nil
 }
 
-func (ac apiCall) createOrderRequest(
+func (ac apiCall) createTwapOrderRequest(
 	productId string,
 	value,
 	orderSize decimal.Decimal,

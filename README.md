@@ -1,5 +1,9 @@
 # Coinbase Prime Liquidator
 
+
+[![GoDoc](https://godoc.org/github.com/coinbase-samples/prime-liquidator-go?status.svg)](https://godoc.org/github.com/coinbase-samples/prime-liquidator-go)
+[![Go Report Card](https://goreportcard.com/badge/coinbase-samples/prime-liquidator-go)](https://goreportcard.com/report/coinbase-samples/prime-liquidator-go)
+
 ## Overview
 
 The *Coinbase Prime Liquidator* sample application continuously monitors a [Coinbase Prime](https://prime.coinbase.com/) portfolio

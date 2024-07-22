@@ -51,18 +51,6 @@ func main() {
 		log.Fatal("cannot init the prime credentials", zap.Error(err))
 	}
 
-	/*
-		config := config.AppConfig{
-			PortfolioId:            credentials.PortfolioId,
-			FiatCurrencySymbol:     "USD",
-			TwapDuration:           6 * time.Minute, // Change to 60 before release
-			ConvertSymbols:         []string{"usdc"},
-			PrimeCallTimeout:       30 * time.Second,
-			TwapMaxDiscountPercent: decimal.NewFromFloat32(0.1),
-			StablecoinFiatDigits:   2,
-		}
-	*/
-
 	appConfig := &config.AppConfig{}
 
 	if err := config.SetupAppConfig(appConfig); err != nil {

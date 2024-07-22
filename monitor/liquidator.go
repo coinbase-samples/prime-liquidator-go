@@ -19,6 +19,8 @@ package monitor
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
@@ -36,15 +38,33 @@ type Liquidator struct {
 	products       caller.ProductLookup
 	wallets        caller.WalletLookup
 	call           caller.Caller
+	stopWaitGroup  sync.WaitGroup
+	running        atomic.Bool
 }
 
-// RunLiquidator continuously assets and changes them into
+// StartLiquidator continuously assets and changes them into
 // fiat.
-func RunLiquidator(config *config.AppConfig) {
+func StartLiquidator(config *config.AppConfig) (*Liquidator, error) {
 
 	l := newLiquidator(config)
 
-	l.monitor()
+	l.stopWaitGroup.Add(1)
+
+	l.running.Store(true)
+
+	go l.monitor()
+
+	return l, nil
+}
+
+func StopLiquidator(l *Liquidator) error {
+
+	l.running.Store(false)
+
+	l.stopWaitGroup.Wait()
+
+	return nil
+
 }
 
 // newLiquidator returns a new Liquidator struct pointer.
@@ -69,8 +89,13 @@ func newLiquidator(config *config.AppConfig) (l *Liquidator) {
 // request is created.
 func (l *Liquidator) monitor() {
 
+	defer l.stopWaitGroup.Done()
+
 	for {
 
+		if !l.running.Load() {
+			break
+		}
 		if err := l.describeCurrentState(); err != nil {
 			zap.L().Error("unable to describe current state", zap.Error(err))
 			time.Sleep(5 * time.Second)

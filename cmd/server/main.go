@@ -59,11 +59,23 @@ func main() {
 
 	appConfig.PrimeClient = prime.NewClient(credentials, *appConfig.HttpClient)
 
-	log.Warn("watch for crypto assets in hot/trading wallets and sell")
+	log.Info("watch for crypto assets in hot/trading wallets and sell")
 
-	go monitor.RunLiquidator(appConfig)
+	daemon, err := monitor.StartLiquidator(appConfig)
+	if err != nil {
+		log.Fatal("cannot start liquidator", zap.Error(err))
+	}
 
 	log.Info("prime-liquidator", zap.String("state", "started"))
 
 	<-run
+
+	log.Info("prime-liquidator", zap.String("state", "stopping"))
+
+	if err := monitor.StopLiquidator(daemon); err != nil {
+		log.Error("process did not stop cleanly", zap.Error(err))
+	}
+
+	log.Info("prime-liquidator", zap.String("state", "stopped"))
+
 }

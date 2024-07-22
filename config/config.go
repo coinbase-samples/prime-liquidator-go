@@ -42,12 +42,14 @@ type AppConfig struct {
 	HttpTLSHandshakeInSeconds   string `mapstructure:"HTTP_TLS_HANDSHAKE"`
 	EnvName                     string `mapstructure:"ENV_NAME"`
 	FiatCurrencySymbol          string `mapstructure:"FIAT_CURRENCY_SYMBOL"`
-	TwapDurationInMinutes       string `mapstructure:"TWAP_DURATION"`
+	TwapDurationInMinutes       string `mapstructure:"TWAP_DURATION"` // This should be at least 60'
 	PrimeCallTimeoutInSeconds   string `mapstructure:"PRIME_CALL_TIMEOUT"`
 	OrdersCacheSizeInItems      string `mapstructure:"ORDERS_CACHE_SIZE"`
 	ConvertSymbolsArray         string `mapstructure:"CONVERT_SYMBOLS"`
-	TwapMaxDiscountPercent      decimal.Decimal
-	StablecoinFiatDigits        int32
+	TwapMinNotionalPerHour      string `mapstructure:"TWAP_MIN_NOTIONAL"`
+
+	TwapMaxDiscountPercent decimal.Decimal
+	StablecoinFiatDigits   int32
 }
 
 func (a AppConfig) IsLocalEnv() bool {
@@ -73,10 +75,11 @@ func SetupAppConfig(app *AppConfig) error {
 	viper.SetDefault("HTTP_MAX_HOST_IDLE_CONNS", "5")
 	viper.SetDefault("HTTP_RESPONSE_HEADER", "5")
 	viper.SetDefault("HTTP_TLS_HANDSHAKE", "5")
-
 	viper.SetDefault("FIAT_CURRENCY_SYMBOL", "USD")
 	viper.SetDefault("ORDERS_CACHE_SIZE", "1000")
 	viper.SetDefault("CONVERT_SYMBOLS", "usdc")
+	viper.SetDefault("TWAP_DURATION", "60")
+	viper.SetDefault("TWAP_MIN_NOTIONAL", "100")
 
 	viper.ReadInConfig()
 
@@ -132,6 +135,10 @@ func (a AppConfig) HttpResponseHeader() time.Duration {
 
 func (a AppConfig) OrdersCacheSize() int {
 	return convertStrIntOrFatal(a.OrdersCacheSizeInItems, "OrdersCacheSizeInItems")
+}
+
+func (a AppConfig) TwapMinNotional() int {
+	return convertStrIntOrFatal(a.TwapMinNotionalPerHour, "TwapMinNotionalPerHour")
 }
 
 func (a AppConfig) HttpTLSHandshake() time.Duration {

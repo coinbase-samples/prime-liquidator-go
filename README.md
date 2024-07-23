@@ -35,6 +35,8 @@ current price of the asset price on the [Coinbase Exchange](https://exchange.coi
 If the sample application is used to liquidate large positions, there is price action risk that may
 result in trades executing up to 10% lower than the latest price check.
 
+If this application is deployed using the sample AWS CloudFormation template, there will be new charges to your AWS account. For high throughput Prime portfolios, these charges may be significant. As always, continiously review your AWS bill to understand more.
+
 ## Usage
 
 ### Create Stack

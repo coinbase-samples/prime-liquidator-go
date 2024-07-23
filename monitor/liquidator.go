@@ -41,8 +41,8 @@ type Liquidator struct {
 	running        atomic.Bool
 }
 
-// StartLiquidator continuously assets and changes them into
-// fiat.
+// StartLiquidator continuously monitors for assets in hot/trading wallets
+// and coverts them to fiat.
 func StartLiquidator(config *config.AppConfig) (*Liquidator, error) {
 
 	l := newLiquidator(config)

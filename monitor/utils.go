@@ -23,6 +23,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	euroSymbol = "eur"
+	usdSymbol  = "usd"
+)
+
 func meetsTwapRequirements(
 	value decimal.Decimal,
 	twapMinNotional int,
@@ -37,7 +42,10 @@ func meetsTwapRequirements(
 }
 
 func isFiat(symbol string) (f bool) {
-	if strings.ToLower(symbol) == "usd" {
+	v := strings.ToLower(symbol)
+	if v == usdSymbol {
+		f = true
+	} else if v == euroSymbol {
 		f = true
 	}
 	return

@@ -14,34 +14,39 @@
  * limitations under the License.
  */
 
-package prime
+package monitor
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
+	"strings"
+	"time"
+
+	"github.com/shopspring/decimal"
 )
 
-var credentials *Credentials
+const (
+	euroSymbol = "eur"
+	usdSymbol  = "usd"
+)
 
-func GetCredentials() *Credentials {
-	return credentials
+func meetsTwapRequirements(
+	value decimal.Decimal,
+	twapMinNotional int,
+	twapDuration time.Duration,
+) bool {
+
+	minNotionalPerHour := decimal.NewFromInt(int64(twapMinNotional))
+
+	hours := decimal.NewFromFloat(twapDuration.Hours())
+
+	return value.Div(hours).GreaterThanOrEqual(minNotionalPerHour)
 }
 
-func SetCredentials(c *Credentials) {
-	credentials = c
-}
-
-func InitCredentials() (*Credentials, error) {
-
-	if credentials != nil {
-		return credentials, nil
+func isFiat(symbol string) (f bool) {
+	v := strings.ToLower(symbol)
+	if v == usdSymbol {
+		f = true
+	} else if v == euroSymbol {
+		f = true
 	}
-
-	credentials = &Credentials{}
-	if err := json.Unmarshal([]byte(os.Getenv("PRIME_CREDENTIALS")), credentials); err != nil {
-		return nil, fmt.Errorf("Failed to deserialize prime credentials JSON: %w", err)
-	}
-
-	return credentials, nil
+	return
 }

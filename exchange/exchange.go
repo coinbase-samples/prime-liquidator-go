@@ -27,9 +27,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	prime "github.com/coinbase-samples/prime-sdk-go"
+
 	"github.com/shopspring/decimal"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 var exchangeApiBaseUrl = "https://api.exchange.coinbase.com"
@@ -39,10 +40,10 @@ func init() {
 	if len(baseUrl) > 0 {
 		_, err := url.Parse(baseUrl)
 		if err != nil {
-			log.Fatalf(
-				"cannot parse COINBASE_EXCHANGE_BASE_URL - received: %s - err: %v",
-				baseUrl,
-				err,
+			zap.L().Fatal(
+				"cannot parse COINBASE_EXCHANGE_BASE_URL",
+				zap.String("received", baseUrl),
+				zap.Error(err),
 			)
 		}
 		exchangeApiBaseUrl = baseUrl
@@ -53,7 +54,7 @@ type ExchangeProductPrice struct {
 	Price string `json:"price"`
 }
 
-func CurrentProductPrice(productId string, timeout time.Duration) (decimal.Decimal, error) {
+func CurrentProductPrice(productId string, timeout time.Duration, httpClient *http.Client) (decimal.Decimal, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -72,9 +73,7 @@ func CurrentProductPrice(productId string, timeout time.Duration) (decimal.Decim
 
 	req.Header.Add("Accept", "application/json")
 
-	client := http.Client{Transport: prime.GetHttpTransport()}
-
-	res, err := client.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return price, fmt.Errorf("cannot call Exchange product err: %w", err)
 	}

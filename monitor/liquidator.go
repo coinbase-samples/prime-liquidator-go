@@ -19,35 +19,55 @@ package monitor
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor/caller"
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	prime "github.com/coinbase-samples/prime-sdk-go"
 	"github.com/shopspring/decimal"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 type Liquidator struct {
-	config         config.AppConfig
+	config         *config.AppConfig
 	convertSymbols caller.ConvertSymbols
-	balances       []*prime.AssetBalances
+	balances       []*prime.Balance
 	products       caller.ProductLookup
 	wallets        caller.WalletLookup
 	call           caller.Caller
+	stopWaitGroup  sync.WaitGroup
+	running        atomic.Bool
 }
 
-// RunLiquidator continuously assets and changes them into
-// fiat.
-func RunLiquidator(config config.AppConfig) {
+// StartLiquidator continuously monitors for assets in hot/trading wallets
+// and coverts them to fiat.
+func StartLiquidator(config *config.AppConfig) (*Liquidator, error) {
 
 	l := newLiquidator(config)
 
-	l.monitor()
+	l.stopWaitGroup.Add(1)
+
+	l.running.Store(true)
+
+	go l.monitor()
+
+	return l, nil
+}
+
+func StopLiquidator(l *Liquidator) error {
+
+	l.running.Store(false)
+
+	l.stopWaitGroup.Wait()
+
+	return nil
+
 }
 
 // newLiquidator returns a new Liquidator struct pointer.
-func newLiquidator(config config.AppConfig) (l *Liquidator) {
+func newLiquidator(config *config.AppConfig) (l *Liquidator) {
 
 	l = &Liquidator{
 		config:         config,
@@ -55,7 +75,7 @@ func newLiquidator(config config.AppConfig) (l *Liquidator) {
 		call:           caller.NewCaller(config),
 	}
 
-	for _, s := range config.ConvertSymbols {
+	for _, s := range config.ConvertSymbols() {
 		l.convertSymbols.Add(s)
 	}
 
@@ -68,17 +88,22 @@ func newLiquidator(config config.AppConfig) (l *Liquidator) {
 // request is created.
 func (l *Liquidator) monitor() {
 
+	defer l.stopWaitGroup.Done()
+
 	for {
 
+		if !l.running.Load() {
+			break
+		}
 		if err := l.describeCurrentState(); err != nil {
-			log.Error(err)
+			zap.L().Error("unable to describe current state", zap.Error(err))
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
 		for _, asset := range l.balances {
 			if err := l.processAsset(asset); err != nil {
-				log.Error(err)
+				zap.L().Error("unable to process assets", zap.Error(err))
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -113,7 +138,7 @@ func (l *Liquidator) describeCurrentState() (err error) {
 // submits a Prime conversion request.
 func (l Liquidator) processConversion(
 	amount decimal.Decimal,
-	asset *prime.AssetBalances,
+	asset *prime.Balance,
 ) error {
 
 	fiatWallet := l.wallets.Lookup(l.config.FiatCurrencySymbol)
@@ -131,8 +156,8 @@ func (l Liquidator) processConversion(
 
 // processAsset takes an asset and either creates a sell order for fiat or
 // issues a conversion request if the asset is a stablecoin
-func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
-	if asset.IsFiat() {
+func (l Liquidator) processAsset(asset *prime.Balance) error {
+	if isFiat(asset.Symbol) {
 		return nil
 	}
 
@@ -192,18 +217,31 @@ func (l Liquidator) processAsset(asset *prime.AssetBalances) error {
 		return nil
 	}
 
-	limitPrice, err := l.calculateTwapLimitPrice(product, price)
-	if err != nil {
-		return err
+	// Check to see if the size of the order fits into the TWAP requirements
+	if meetsTwapRequirements(value, l.config.TwapMinNotional(), l.config.TwapDuration()) {
+
+		limitPrice, err := l.calculateTwapLimitPrice(product, price)
+		if err != nil {
+			return err
+		}
+
+		return l.call.PrimeCreateTwapOrder(
+			productId,
+			value,
+			orderSize,
+			limitPrice,
+			asset,
+		)
 	}
 
-	return l.call.PrimeCreateTwapOrder(
+	// Create a market order
+	return l.call.PrimeCreateMarketOrder(
 		productId,
 		value,
 		orderSize,
-		limitPrice,
 		asset,
 	)
+
 }
 
 // calculateTwapLimitPrice looks at the product, current
@@ -238,6 +276,6 @@ func (l Liquidator) adjustTwapLimitPrice(
 	return quo.Floor().Mul(quoteIncrement)
 }
 
-func (l Liquidator) productId(asset *prime.AssetBalances) string {
+func (l Liquidator) productId(asset *prime.Balance) string {
 	return fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
 }

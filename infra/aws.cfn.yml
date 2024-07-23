@@ -1,0 +1,410 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Coinbase Prime Liquidator
+
+Parameters:
+
+  AvailabilityZone0:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+
+  AvailabilityZone1:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b
+
+  DockerImageUri:
+    Type: String
+    Default: public.ecr.aws/nginx/nginx:stable-perl-arm64v8
+
+  EnvName:
+    Type: String
+    Default: dev
+
+  OrdersCacheSizeInItems:
+    Type: Number
+    Default: 1000000
+
+  FiatCurrencySymbol:
+    Type: String
+    Default: USD
+
+  TwapDurationInMinutes:
+    Type: Number
+    Default: 60
+
+  TwapMinNotionalPerHour:
+    Type: Number
+    Default: 100
+
+  ConvertSymbols:
+    Type: String
+    Default: usdc
+
+  PrimeCallTimeoutInSeconds:
+    Type: String
+    Default: 10
+
+  HttpConnectTimeoutInSeconds:
+    Type: String
+    Default: 5
+
+  HttpConnKeepAliveInSeconds:
+    Type: String
+    Default: 30
+
+  HttpExpectContinueInSeconds:
+    Type: String
+    Default: 1
+
+  HttpIdleConnInSeconds:
+    Type: String
+    Default: 90
+
+  HttpMaxAllIdleConns:
+    Type: String
+    Default: 10
+
+  HttpMaxHostIdleConns:
+    Type: String
+    Default: 5
+
+  HttpResponseHeaderInSeconds:
+    Type: String
+    Default: 5
+
+  HttpTlsHandshakeInSeconds:
+    Type: String
+    Default: 5
+
+
+Mappings:
+
+  CidrMap:
+    Vpc:
+      Cidr: 10.50.0.0/16
+    Public0:
+      Cidr: 10.50.0.0/24
+    Public1:
+      Cidr: 10.50.1.0/24
+
+
+Resources:
+
+  # VPC ########################################################################
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [ CidrMap, Vpc, Cidr ]
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Public0, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet0
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Public1, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet1
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-igw
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-igw
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet0
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetNetworkAclAssociation0:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet0
+      NetworkAclId: !GetAtt Vpc.DefaultNetworkAcl
+
+  PublicSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      NetworkAclId: !GetAtt Vpc.DefaultNetworkAcl
+
+  # Secrets Manager ############################################################
+
+  PrimeApiCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-prime-api-credentials
+      SecretString: setme
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  # Service ####################################################################
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+      CapacityProviders:
+        - FARGATE
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  ContainerRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${AWS::StackName}
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  TaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /app/fargate/${AWS::StackName}-task
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-task-role
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - !Ref TaskExecutionPolicy
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  TaskExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-task-exec-policy
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:DescribeSecret
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !Ref PrimeApiCredentialsSecret
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 16384
+      Memory: 32768
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      EphemeralStorage:
+        SizeInGiB: 21
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: !Ref AWS::StackName
+          Image: !Ref DockerImageUri
+          ReadonlyRootFilesystem: false
+          Interactive: false
+          StartTimeout: 60
+          Essential: true
+          Ulimits:
+            - Name: nofile
+              HardLimit: 1048576
+              SoftLimit: 1048576
+          Environment:
+            - Name: ENV_NAME
+              Value: !Ref EnvName
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+
+            - Name: PRIME_CALL_TIMEOUT
+              Value: !Ref PrimeCallTimeoutInSeconds
+
+            - Name: FIAT_CURRENCY_SYMBOL
+              Value: !Ref FiatCurrencySymbol
+
+            - Name: TWAP_DURATION
+              Value: !Ref TwapDurationInMinutes
+
+            - Name: ORDERS_CACHE_SIZE
+              Value: !Ref OrdersCacheSizeInItems
+
+            - Name: CONVERT_SYMBOLS
+              Value: !Ref ConvertSymbols
+
+            - Name: TWAP_MIN_NOTIONAL
+              Value: !Ref TwapMinNotionalPerHour
+
+ 
+
+            - Name: HTTP_CONNECT_TIMEOUT
+              Value: !Ref HttpConnectTimeoutInSeconds
+            - Name: HTTP_CONN_KEEP_ALIVE
+              Value: !Ref HttpConnKeepAliveInSeconds
+            - Name: HTTP_EXPECT_CONTINUE
+              Value: !Ref HttpExpectContinueInSeconds
+            - Name: HTTP_IDLE_CONN
+              Value: !Ref HttpIdleConnInSeconds
+            - Name: HTTP_MAX_ALL_IDLE_CONNS
+              Value: !Ref HttpMaxAllIdleConns
+            - Name: HTTP_MAX_HOST_IDLE_CONNS
+              Value: !Ref HttpMaxHostIdleConns
+            - Name: HTTP_RESPONSE_HEADER
+              Value: !Ref HttpResponseHeaderInSeconds
+            - Name: HTTP_TLS_HANDSHAKE
+              Value: !Ref HttpTlsHandshakeInSeconds
+          Secrets:
+            - Name: PRIME_CREDENTIALS
+              ValueFrom: !Ref PrimeApiCredentialsSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref TaskLogGroup
+              awslogs-stream-prefix: listener
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref EcsCluster
+      ServiceName: !Ref AWS::StackName
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref TaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !GetAtt ServiceSg.GroupId
+          Subnets:
+            - !Ref PublicSubnet0
+            - !Ref PublicSubnet1
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  ServiceSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub activity-listener-${EnvName}
+      GroupDescription: Task Security Group
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: EnvName
+          Value: !Ref EnvName
+
+  ServiceSgToEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ServiceSg
+      IpProtocol: tcp
+      ToPort: 443
+      FromPort: 443
+      CidrIp: 0.0.0.0/0
+
+
+Outputs:
+
+  EnvNameOutput:
+    Value: !Ref EnvName
+    Export:
+      Name: !Sub ${AWS::StackName}-EnvName
+

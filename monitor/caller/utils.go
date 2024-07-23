@@ -17,10 +17,16 @@
 package caller
 
 import (
+	"crypto/md5"
+	"fmt"
 	"strings"
 
-	"github.com/coinbase-samples/prime-liquidator-go/prime"
+	prime "github.com/coinbase-samples/prime-sdk-go"
 )
+
+func generateUniqueId(params ...string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
+}
 
 type ProductLookup map[string]*prime.Product
 

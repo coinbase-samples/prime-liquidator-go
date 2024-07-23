@@ -1,0 +1,37 @@
+[
+
+	{ "ParameterKey": "EnvName", "ParameterValue": "dev" },
+
+	{ "ParameterKey": "DockerImageUri", "ParameterValue": "public.ecr.aws/nginx/nginx:stable-perl-arm64v8" },
+
+	{ "ParameterKey": "TwapDurationInMinutes", "ParameterValue": "60" },
+
+	{ "ParameterKey": "TwapMinNotionalPerHour", "ParameterValue": "100" },
+
+	{ "ParameterKey": "ConvertSymbols", "ParameterValue": "usdc" },
+
+	{ "ParameterKey": "FiatCurrencySymbol", "ParameterValue": "USD" },
+
+	{ "ParameterKey": "OrdersCacheSizeInItems", "ParameterValue": "1000000" },
+
+	{ "ParameterKey": "PrimeCallTimeoutInSeconds", "ParameterValue": "10" },
+
+	{ "ParameterKey": "HttpConnectTimeoutInSeconds", "ParameterValue": "5" },
+
+	{ "ParameterKey": "HttpConnectTimeoutInSeconds", "ParameterValue": "5" },
+
+	{ "ParameterKey": "HttpConnKeepAliveInSeconds", "ParameterValue": "30" },
+
+	{ "ParameterKey": "HttpExpectContinueInSeconds", "ParameterValue": "1" },
+
+	{ "ParameterKey": "HttpIdleConnInSeconds", "ParameterValue": "90" },
+
+	{ "ParameterKey": "HttpMaxAllIdleConns", "ParameterValue": "10" },
+
+	{ "ParameterKey": "HttpMaxHostIdleConns", "ParameterValue": "5" },
+
+	{ "ParameterKey": "HttpResponseHeaderInSeconds", "ParameterValue": "5" },
+
+	{ "ParameterKey": "HttpTlsHandshakeInSeconds", "ParameterValue": "5" }
+
+]

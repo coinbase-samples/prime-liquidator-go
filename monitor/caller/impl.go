@@ -24,7 +24,6 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/exchange"
-	"github.com/coinbase-samples/prime-liquidator-go/util"
 	"go.uber.org/zap"
 
 	prime "github.com/coinbase-samples/prime-sdk-go"
@@ -222,7 +221,7 @@ func (ac apiCall) PrimeCreateMarketOrder(
 		return err
 	}
 
-	clientOrderId := util.GenerateUniqueId(
+	clientOrderId := generateUniqueId(
 		productId,
 		prime.OrderSideSell,
 		prime.OrderTypeMarket,
@@ -309,7 +308,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		return err
 	}
 
-	clientOrderId := util.GenerateUniqueId(
+	clientOrderId := generateUniqueId(
 		productId,
 		prime.OrderSideSell,
 		prime.OrderTypeTwap,

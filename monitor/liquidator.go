@@ -25,7 +25,6 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor/caller"
-	"github.com/coinbase-samples/prime-liquidator-go/util"
 	prime "github.com/coinbase-samples/prime-sdk-go"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -158,7 +157,7 @@ func (l Liquidator) processConversion(
 // processAsset takes an asset and either creates a sell order for fiat or
 // issues a conversion request if the asset is a stablecoin
 func (l Liquidator) processAsset(asset *prime.Balance) error {
-	if util.IsFiat(asset.Symbol) {
+	if isFiat(asset.Symbol) {
 		return nil
 	}
 

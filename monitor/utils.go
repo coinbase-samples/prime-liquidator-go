@@ -17,6 +17,7 @@
 package monitor
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -33,4 +34,11 @@ func meetsTwapRequirements(
 	hours := decimal.NewFromFloat(twapDuration.Hours())
 
 	return value.Div(hours).GreaterThanOrEqual(minNotionalPerHour)
+}
+
+func isFiat(symbol string) (f bool) {
+	if strings.ToLower(symbol) == "usd" {
+		f = true
+	}
+	return
 }

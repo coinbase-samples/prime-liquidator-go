@@ -15,20 +15,3 @@
  */
 
 package util
-
-import (
-	"crypto/md5"
-	"fmt"
-	"strings"
-)
-
-func GenerateUniqueId(params ...string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
-}
-
-func IsFiat(symbol string) (f bool) {
-	if strings.ToLower(symbol) == "usd" {
-		f = true
-	}
-	return
-}

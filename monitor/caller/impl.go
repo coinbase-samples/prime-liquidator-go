@@ -91,14 +91,14 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
 func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	products := make(ProductLookup)
 
 	var cursor string
 
 	for {
+
+		ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+		defer cancel()
 
 		request := &prime.ListProductsRequest{
 			PortfolioId: ac.portfolioId,

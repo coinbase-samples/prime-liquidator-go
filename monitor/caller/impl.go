@@ -53,14 +53,13 @@ func NewCaller(config *config.AppConfig) Caller {
 
 func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	var cursor string
 
 	wallets := make(WalletLookup)
 
 	for {
+
+		ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 
 		request := &prime.ListWalletsRequest{
 			PortfolioId: ac.portfolioId,
@@ -74,6 +73,8 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 		if err != nil {
 			return wallets, err
 		}
+
+		cancel()
 
 		for _, wallet := range response.Wallets {
 			wallets.Add(wallet)
@@ -98,7 +99,6 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 	for {
 
 		ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-		defer cancel()
 
 		request := &prime.ListProductsRequest{
 			PortfolioId: ac.portfolioId,
@@ -109,6 +109,8 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		cancel()
 
 		for _, p := range response.Products {
 			products.Add(p)
@@ -168,9 +170,6 @@ func (ac apiCall) PrimeCreateConversion(
 	amount decimal.Decimal,
 ) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	round := amount.RoundFloor(ac.config.StablecoinFiatDigits)
 
 	if round.IsZero() {
@@ -183,6 +182,9 @@ func (ac apiCall) PrimeCreateConversion(
 		zap.String("destinationSymbol", destinationWallet.Symbol),
 		zap.Any("amount", round),
 	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+	defer cancel()
 
 	request := &prime.CreateConversionRequest{
 		PortfolioId:         ac.portfolioId,

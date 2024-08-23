@@ -53,46 +53,54 @@ func NewCaller(config *config.AppConfig) Caller {
 
 func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	var cursor string
 
 	wallets := make(WalletLookup)
 
 	for {
 
-		request := &prime.ListWalletsRequest{
-			PortfolioId: ac.portfolioId,
-			Type:        prime.WalletTypeTrading,
-			Pagination: &prime.PaginationParams{
-				Cursor: cursor,
-			},
-		}
+		w, nextCursor, err := ac.primeListTradingWallets(cursor)
 
-		response, err := ac.config.PrimeClient.ListWallets(ctx, request)
 		if err != nil {
 			return wallets, err
 		}
 
-		for _, wallet := range response.Wallets {
+		for _, wallet := range w {
 			wallets.Add(wallet)
 		}
 
-		if !response.Pagination.HasNext {
+		if len(nextCursor) == 0 {
 			break
 		}
 
-		cursor = response.Pagination.NextCursor
+		cursor = nextCursor
 	}
 
 	return wallets, nil
 }
 
-func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
+func (ac apiCall) primeListTradingWallets(cursor string) ([]*prime.Wallet, string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
+
+	request := &prime.ListWalletsRequest{
+		PortfolioId: ac.portfolioId,
+		Type:        prime.WalletTypeTrading,
+		Pagination: &prime.PaginationParams{
+			Cursor: cursor,
+		},
+	}
+
+	response, err := ac.config.PrimeClient.ListWallets(ctx, request)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return response.Wallets, response.Pagination.NextCursor, nil
+}
+
+func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
 	products := make(ProductLookup)
 
@@ -100,28 +108,42 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
 	for {
 
-		request := &prime.ListProductsRequest{
-			PortfolioId: ac.portfolioId,
-			Pagination:  &prime.PaginationParams{Cursor: cursor},
-		}
+		p, nextCursor, err := ac.primeListProducts(cursor)
 
-		response, err := ac.config.PrimeClient.ListProducts(ctx, request)
 		if err != nil {
-			return nil, err
+			return products, err
 		}
 
-		for _, p := range response.Products {
-			products.Add(p)
+		for _, product := range p {
+			products.Add(product)
 		}
 
-		if !response.Pagination.HasNext {
+		if len(nextCursor) == 0 {
 			break
 		}
 
-		cursor = response.Pagination.NextCursor
+		cursor = nextCursor
 	}
 
 	return products, nil
+}
+
+func (ac apiCall) primeListProducts(cursor string) ([]*prime.Product, string, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+	defer cancel()
+
+	request := &prime.ListProductsRequest{
+		PortfolioId: ac.portfolioId,
+		Pagination:  &prime.PaginationParams{Cursor: cursor},
+	}
+
+	response, err := ac.config.PrimeClient.ListProducts(ctx, request)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return response.Products, response.Pagination.NextCursor, nil
 }
 
 func (ac apiCall) PrimeCalculateOrderSize(
@@ -168,9 +190,6 @@ func (ac apiCall) PrimeCreateConversion(
 	amount decimal.Decimal,
 ) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
-	defer cancel()
-
 	round := amount.RoundFloor(ac.config.StablecoinFiatDigits)
 
 	if round.IsZero() {
@@ -183,6 +202,9 @@ func (ac apiCall) PrimeCreateConversion(
 		zap.String("destinationSymbol", destinationWallet.Symbol),
 		zap.Any("amount", round),
 	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
+	defer cancel()
 
 	request := &prime.CreateConversionRequest{
 		PortfolioId:         ac.portfolioId,

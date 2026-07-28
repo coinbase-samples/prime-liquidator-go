@@ -23,7 +23,14 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor"
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/balances"
+	"github.com/coinbase/prime-sdk-go/client"
+	"github.com/coinbase/prime-sdk-go/credentials"
+	"github.com/coinbase/prime-sdk-go/orders"
+	"github.com/coinbase/prime-sdk-go/products"
+	"github.com/coinbase/prime-sdk-go/transactions"
+	"github.com/coinbase/prime-sdk-go/wallets"
+	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
@@ -38,15 +45,13 @@ func main() {
 
 	log.Info("prime-liquidator", zap.String("state", "starting"))
 
+	_ = godotenv.Load()
+
 	if err := os.Setenv("TZ", "UTC"); err != nil {
 		log.Fatal("cannot set time zone: UTC", zap.Error(err))
 	}
 
-	if err := os.Setenv("TZ", "UTC"); err != nil {
-		log.Fatal("Cannot set time zone: UTC", zap.Error(err))
-	}
-
-	credentials, err := prime.ReadEnvCredentials("PRIME_CREDENTIALS")
+	creds, err := credentials.ReadEnvCredentials("PRIME_CREDENTIALS")
 	if err != nil {
 		log.Fatal("cannot init the prime credentials", zap.Error(err))
 	}
@@ -57,7 +62,18 @@ func main() {
 		log.Fatal("cannot setup app config", zap.Error(err))
 	}
 
-	appConfig.PrimeClient = prime.NewClient(credentials, *appConfig.HttpClient)
+	appConfig.PrimeClient = client.NewRestClient(creds, *appConfig.HttpClient)
+	appConfig.Wallets = wallets.NewWalletsService(appConfig.PrimeClient)
+	appConfig.Products = products.NewProductsService(appConfig.PrimeClient)
+	appConfig.Balances = balances.NewBalancesService(appConfig.PrimeClient)
+	appConfig.Orders = orders.NewOrdersService(appConfig.PrimeClient)
+	appConfig.Transactions = transactions.NewTransactionsService(appConfig.PrimeClient)
+
+	if appConfig.IsDryRun() {
+		log.Warn("dry run enabled: orders and conversions will not be submitted")
+	} else {
+		log.Warn("dry run disabled: the liquidator will place real orders and conversions")
+	}
 
 	log.Info("watch for crypto assets in hot/trading wallets and sell")
 

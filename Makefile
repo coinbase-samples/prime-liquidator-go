@@ -21,6 +21,58 @@ BUILD_ID ?= latest
 STACK_NAME ?= prime-liquidator-$(ENV_NAME)
 ACCOUNT_ID := $(shell aws sts get-caller-identity --profile $(PROFILE) --query 'Account' --output text)
 
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show available targets
+	@grep -E '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+.PHONY: setup
+setup: ## Copy .env.example to .env if missing and download modules
+	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit it with your credentials"; else echo ".env already exists"; fi
+	@go mod download
+
+.PHONY: build
+build: ## Build server and verify binaries
+	@go build -o bin/prime-liquidator ./cmd/server
+	@go build -o bin/verify-setup ./cmd/verify
+
+.PHONY: test
+test: ## Run unit tests
+	@go test ./...
+
+.PHONY: fmt
+fmt: ## Format Go source
+	@gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+
+.PHONY: vet
+vet: ## Run go vet
+	@go vet ./...
+
+.PHONY: tidy
+tidy: ## Tidy go.mod and go.sum
+	@go mod tidy
+
+.PHONY: verify-setup
+verify-setup: ## Check Prime API access and wallet balances (read-only)
+	@go run ./cmd/verify
+
+.PHONY: run-local
+run-local: ## Run liquidator locally (DRY_RUN defaults to true)
+	@go run ./cmd/server
+
+.PHONY: run-local-live
+run-local-live: ## Run liquidator with DRY_RUN=false (places real orders)
+	@echo "WARNING: This will place real sell orders and conversions on your Prime portfolio."
+	@read -p "Type yes to continue: " confirm; \
+	if [ "$$confirm" != "yes" ]; then echo "Aborted."; exit 1; fi; \
+	DRY_RUN=false go run ./cmd/server
+
+.PHONY: docker-run-local
+docker-run-local: ## Build and run container with .env file
+	@docker build -t prime-liquidator:local .
+	@docker run --rm --env-file .env prime-liquidator:local
+
 .PHONY: create-aws-stack
 create-aws-stack:
 	@aws cloudformation create-stack \

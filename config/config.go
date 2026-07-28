@@ -23,15 +23,26 @@ import (
 	"strings"
 	"time"
 
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/balances"
+	"github.com/coinbase/prime-sdk-go/client"
+	"github.com/coinbase/prime-sdk-go/orders"
+	"github.com/coinbase/prime-sdk-go/products"
+	"github.com/coinbase/prime-sdk-go/transactions"
+	"github.com/coinbase/prime-sdk-go/wallets"
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 type AppConfig struct {
-	PrimeClient                 *prime.Client
+	PrimeClient                 client.RestClient
+	Wallets                     wallets.WalletsService
+	Products                    products.ProductsService
+	Balances                    balances.BalancesService
+	Orders                      orders.OrdersService
+	Transactions                transactions.TransactionsService
 	HttpClient                  *http.Client
+	DryRun                      string `mapstructure:"DRY_RUN"`
 	HttpConnectTimeoutInSeconds string `mapstructure:"HTTP_CONNECT_TIMEOUT"`
 	HttpConnKeepAliveInSeconds  string `mapstructure:"HTTP_CONN_KEEP_ALIVE"`
 	HttpExpectContinueInSeconds string `mapstructure:"HTTP_EXPECT_CONTINUE"`
@@ -54,6 +65,15 @@ type AppConfig struct {
 
 func (a AppConfig) IsLocalEnv() bool {
 	return a.EnvName == "local"
+}
+
+func (a AppConfig) IsDryRun() bool {
+	switch strings.ToLower(strings.TrimSpace(a.DryRun)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func SetupAppConfig(app *AppConfig) error {
@@ -80,6 +100,7 @@ func SetupAppConfig(app *AppConfig) error {
 	viper.SetDefault("CONVERT_SYMBOLS", "usdc")
 	viper.SetDefault("TWAP_DURATION", "60")
 	viper.SetDefault("TWAP_MIN_NOTIONAL", "100")
+	viper.SetDefault("DRY_RUN", "true")
 
 	viper.ReadInConfig()
 

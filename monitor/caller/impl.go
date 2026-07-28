@@ -24,12 +24,17 @@ import (
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
 	"github.com/coinbase-samples/prime-liquidator-go/exchange"
-	"go.uber.org/zap"
-
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/balances"
+	"github.com/coinbase/prime-sdk-go/model"
+	"github.com/coinbase/prime-sdk-go/orders"
+	"github.com/coinbase/prime-sdk-go/products"
+	"github.com/coinbase/prime-sdk-go/transactions"
+	"github.com/coinbase/prime-sdk-go/utils"
+	"github.com/coinbase/prime-sdk-go/wallets"
 	"github.com/google/uuid"
 	"github.com/jellydator/ttlcache/v2"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 type apiCall struct {
@@ -47,7 +52,7 @@ func NewCaller(config *config.AppConfig) Caller {
 	return apiCall{
 		config:      config,
 		ordersCache: ordersCache,
-		portfolioId: config.PrimeClient.Credentials.PortfolioId,
+		portfolioId: config.PrimeClient.Credentials().PortfolioId,
 	}
 }
 
@@ -55,18 +60,18 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 
 	var cursor string
 
-	wallets := make(WalletLookup)
+	walletLookup := make(WalletLookup)
 
 	for {
 
 		w, nextCursor, err := ac.primeListTradingWallets(cursor)
 
 		if err != nil {
-			return wallets, err
+			return walletLookup, err
 		}
 
 		for _, wallet := range w {
-			wallets.Add(wallet)
+			walletLookup.Add(wallet)
 		}
 
 		if len(nextCursor) == 0 {
@@ -76,33 +81,33 @@ func (ac apiCall) PrimeDescribeTradingWallets() (WalletLookup, error) {
 		cursor = nextCursor
 	}
 
-	return wallets, nil
+	return walletLookup, nil
 }
 
-func (ac apiCall) primeListTradingWallets(cursor string) ([]*prime.Wallet, string, error) {
+func (ac apiCall) primeListTradingWallets(cursor string) ([]*model.Wallet, string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	request := &prime.ListWalletsRequest{
+	request := &wallets.ListWalletsRequest{
 		PortfolioId: ac.portfolioId,
-		Type:        prime.WalletTypeTrading,
-		Pagination: &prime.PaginationParams{
+		Type:        model.WalletTypeTrading,
+		Pagination: &model.PaginationParams{
 			Cursor: cursor,
 		},
 	}
 
-	response, err := ac.config.PrimeClient.ListWallets(ctx, request)
+	response, err := ac.config.Wallets.ListWallets(ctx, request)
 	if err != nil {
 		return nil, "", err
 	}
 
-	return response.Wallets, response.Pagination.NextCursor, nil
+	return response.Wallets, response.GetNextCursor(), nil
 }
 
 func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 
-	products := make(ProductLookup)
+	productLookup := make(ProductLookup)
 
 	var cursor string
 
@@ -111,11 +116,11 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 		p, nextCursor, err := ac.primeListProducts(cursor)
 
 		if err != nil {
-			return products, err
+			return productLookup, err
 		}
 
 		for _, product := range p {
-			products.Add(product)
+			productLookup.Add(product)
 		}
 
 		if len(nextCursor) == 0 {
@@ -125,33 +130,33 @@ func (ac apiCall) PrimeDescribeProducts() (ProductLookup, error) {
 		cursor = nextCursor
 	}
 
-	return products, nil
+	return productLookup, nil
 }
 
-func (ac apiCall) primeListProducts(cursor string) ([]*prime.Product, string, error) {
+func (ac apiCall) primeListProducts(cursor string) ([]*model.Product, string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	request := &prime.ListProductsRequest{
+	request := &products.ListProductsRequest{
 		PortfolioId: ac.portfolioId,
-		Pagination:  &prime.PaginationParams{Cursor: cursor},
+		Pagination:  &model.PaginationParams{Cursor: cursor},
 	}
 
-	response, err := ac.config.PrimeClient.ListProducts(ctx, request)
+	response, err := ac.config.Products.ListProducts(ctx, request)
 	if err != nil {
 		return nil, "", err
 	}
 
-	return response.Products, response.Pagination.NextCursor, nil
+	return response.Products, response.GetNextCursor(), nil
 }
 
 func (ac apiCall) PrimeCalculateOrderSize(
-	product *prime.Product,
+	product *model.Product,
 	amount,
 	holds decimal.Decimal,
 ) (orderSize decimal.Decimal, err error) {
-	orderSize, err = prime.CalculateOrderSize(product, amount, holds)
+	orderSize, err = utils.CalculateOrderSize(product, amount, holds)
 	if err != nil {
 		err = fmt.Errorf(
 			"cannot calculator order size - product: %s - amount: %v - holds: %v - err: %v",
@@ -164,16 +169,16 @@ func (ac apiCall) PrimeCalculateOrderSize(
 	return
 }
 
-func (ac apiCall) PrimeDescribeTradingBalances() ([]*prime.Balance, error) {
+func (ac apiCall) PrimeDescribeTradingBalances() ([]*model.Balance, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	response, err := ac.config.PrimeClient.ListWalletBalances(
+	response, err := ac.config.Balances.ListPortfolioBalances(
 		ctx,
-		&prime.ListWalletBalancesRequest{
+		&balances.ListPortfolioBalancesRequest{
 			PortfolioId: ac.portfolioId,
-			Type:        prime.BalanceTypeTrading,
+			Type:        model.BalanceTypeTrading,
 		},
 	)
 
@@ -186,7 +191,7 @@ func (ac apiCall) PrimeDescribeTradingBalances() ([]*prime.Balance, error) {
 
 func (ac apiCall) PrimeCreateConversion(
 	sourceWallet,
-	destinationWallet *prime.Wallet,
+	destinationWallet *model.Wallet,
 	amount decimal.Decimal,
 ) error {
 
@@ -203,10 +208,19 @@ func (ac apiCall) PrimeCreateConversion(
 		zap.Any("amount", round),
 	)
 
+	if ac.config.IsDryRun() {
+		zap.L().Info(
+			"dry run: skipping fiat conversion submission",
+			zap.String("sourceSymbol", sourceWallet.Symbol),
+			zap.String("destinationSymbol", destinationWallet.Symbol),
+		)
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	request := &prime.CreateConversionRequest{
+	request := &transactions.CreateConversionRequest{
 		PortfolioId:         ac.portfolioId,
 		SourceWalletId:      sourceWallet.Id,
 		DestinationWalletId: destinationWallet.Id,
@@ -216,7 +230,7 @@ func (ac apiCall) PrimeCreateConversion(
 		IdempotencyKey:      uuid.New().String(),
 	}
 
-	response, err := ac.config.PrimeClient.CreateConversion(ctx, request)
+	response, err := ac.config.Transactions.CreateConversion(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -236,7 +250,7 @@ func (ac apiCall) PrimeCreateMarketOrder(
 	productId string,
 	value,
 	orderSize decimal.Decimal,
-	asset *prime.Balance,
+	asset *model.Balance,
 ) error {
 	holds, err := asset.HoldsNum()
 	if err != nil {
@@ -245,9 +259,9 @@ func (ac apiCall) PrimeCreateMarketOrder(
 
 	clientOrderId := generateUniqueId(
 		productId,
-		prime.OrderSideSell,
-		prime.OrderTypeMarket,
-		prime.TimeInForceGoodUntilTime,
+		string(model.OrderSideSell),
+		model.OrderTypeMarket,
+		model.TimeInForceGoodUntilTime,
 		orderSize.String(),
 		holds.String(),
 	)
@@ -264,6 +278,15 @@ func (ac apiCall) PrimeCreateMarketOrder(
 		zap.Any("orderSize", orderSize),
 	)
 
+	if ac.config.IsDryRun() {
+		zap.L().Info(
+			"dry run: skipping market order submission",
+			zap.String("symbol", asset.Symbol),
+			zap.String("productId", productId),
+		)
+		return nil
+	}
+
 	request := ac.createMarketOrderRequest(
 		productId,
 		value,
@@ -275,7 +298,7 @@ func (ac apiCall) PrimeCreateMarketOrder(
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	response, err := ac.config.PrimeClient.CreateOrder(ctx, request)
+	response, err := ac.config.Orders.CreateOrder(ctx, request)
 	if err != nil {
 		return fmt.Errorf(
 			"unable to create market order - client order id: %s - symbol: %s - size: %v %w",
@@ -301,16 +324,16 @@ func (ac apiCall) createMarketOrderRequest(
 	productId string,
 	value,
 	orderSize decimal.Decimal,
-	asset *prime.Balance,
+	asset *model.Balance,
 	clientOrderId string,
-) *prime.CreateOrderRequest {
+) *orders.CreateOrderRequest {
 
-	return &prime.CreateOrderRequest{
-		Order: &prime.Order{
+	return &orders.CreateOrderRequest{
+		Order: &model.Order{
 			PortfolioId:   ac.portfolioId,
 			ProductId:     productId,
-			Side:          prime.OrderSideSell,
-			Type:          prime.OrderTypeMarket,
+			Side:          string(model.OrderSideSell),
+			Type:          model.OrderTypeMarket,
 			ClientOrderId: clientOrderId,
 			BaseQuantity:  orderSize.String(),
 		},
@@ -322,7 +345,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 	value,
 	orderSize,
 	limitPrice decimal.Decimal,
-	asset *prime.Balance,
+	asset *model.Balance,
 ) error {
 
 	holds, err := asset.HoldsNum()
@@ -332,9 +355,9 @@ func (ac apiCall) PrimeCreateTwapOrder(
 
 	clientOrderId := generateUniqueId(
 		productId,
-		prime.OrderSideSell,
-		prime.OrderTypeTwap,
-		prime.TimeInForceGoodUntilTime,
+		string(model.OrderSideSell),
+		model.OrderTypeTwap,
+		model.TimeInForceGoodUntilTime,
 		orderSize.String(),
 		holds.String(),
 	)
@@ -351,6 +374,15 @@ func (ac apiCall) PrimeCreateTwapOrder(
 		zap.Any("orderSize", orderSize),
 	)
 
+	if ac.config.IsDryRun() {
+		zap.L().Info(
+			"dry run: skipping twap order submission",
+			zap.String("symbol", asset.Symbol),
+			zap.String("productId", productId),
+		)
+		return nil
+	}
+
 	request := ac.createTwapOrderRequest(
 		productId,
 		value,
@@ -364,7 +396,7 @@ func (ac apiCall) PrimeCreateTwapOrder(
 	ctx, cancel := context.WithTimeout(context.Background(), ac.config.PrimeCallTimeout())
 	defer cancel()
 
-	response, err := ac.config.PrimeClient.CreateOrder(ctx, request)
+	response, err := ac.config.Orders.CreateOrder(ctx, request)
 	if err != nil {
 		return fmt.Errorf(
 			"unable to create twap order - client order id: %s - symbol: %s - size: %v %w",
@@ -390,22 +422,22 @@ func (ac apiCall) createTwapOrderRequest(
 	productId string,
 	value,
 	orderSize decimal.Decimal,
-	asset *prime.Balance,
+	asset *model.Balance,
 	limitPrice decimal.Decimal,
 	duration time.Duration,
 	clientOrderId string,
-) *prime.CreateOrderRequest {
+) *orders.CreateOrderRequest {
 
 	startTime := time.Now()
 	endTime := startTime.Add(duration)
 
-	return &prime.CreateOrderRequest{
-		Order: &prime.Order{
+	return &orders.CreateOrderRequest{
+		Order: &model.Order{
 			PortfolioId:   ac.portfolioId,
 			ProductId:     productId,
-			Side:          prime.OrderSideSell,
-			Type:          prime.OrderTypeTwap,
-			TimeInForce:   prime.TimeInForceGoodUntilTime,
+			Side:          string(model.OrderSideSell),
+			Type:          model.OrderTypeTwap,
+			TimeInForce:   model.TimeInForceGoodUntilTime,
 			ClientOrderId: clientOrderId,
 			BaseQuantity:  orderSize.String(),
 			LimitPrice:    limitPrice.String(),

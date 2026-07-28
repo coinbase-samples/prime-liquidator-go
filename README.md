@@ -37,7 +37,71 @@ result in trades executing up to 10% lower than the latest price check.
 
 If this application is deployed using the sample AWS CloudFormation template, there will be new charges to your AWS account. For high throughput Prime portfolios, these charges may be significant. As always, continiously review your AWS bill to understand more.
 
-## Usage
+## Quickstart (local)
+
+### Prerequisites
+
+- [Go](https://go.dev/) 1.25 or newer
+- [Coinbase Prime](https://prime.coinbase.com/) API credentials with access to the target portfolio
+
+### Setup
+
+```bash
+make setup
+```
+
+Edit `.env` (created from [.env.example](.env.example)) and set `PRIME_CREDENTIALS` to a single-line JSON object:
+
+```json
+{"accessKey":"...","passphrase":"...","signingKey":"...","portfolioId":"...","svcAccountId":"..."}
+```
+
+Prime API credentials can be created in the [Prime web application](https://prime.coinbase.com), once an account is opened.
+
+### Verify configuration
+
+Run a read-only check against Prime and Coinbase Exchange:
+
+```bash
+make verify-setup
+```
+
+This confirms API signing, lists non-zero trading balances, and fetches a sample Exchange price. It never prints secrets.
+
+### Run locally (dry run)
+
+By default `DRY_RUN=true`. The liquidator monitors balances and **logs** intended sells and conversions without submitting them:
+
+```bash
+make run-local
+```
+
+To run against live trading (real orders and conversions), use:
+
+```bash
+make run-local-live
+```
+
+You must type `yes` to confirm. Prefer keeping `DRY_RUN=true` until you are certain the portfolio and settings are correct.
+
+### Environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PRIME_CREDENTIALS` | (required) | Single-line JSON with Prime API keys and `portfolioId` |
+| `ENV_NAME` | `local` | Environment name (`local` enables safer local defaults) |
+| `DRY_RUN` | `true` | When `true`, do not submit orders or conversions |
+| `FIAT_CURRENCY_SYMBOL` | `USD` | Fiat symbol for sells and conversions |
+| `CONVERT_SYMBOLS` | `usdc` | Comma-separated stablecoins to convert to fiat |
+| `TWAP_DURATION` | `60` | TWAP duration in minutes |
+| `TWAP_MIN_NOTIONAL` | `100` | Minimum notional per hour for TWAP eligibility |
+| `PRIME_CALL_TIMEOUT` | `10` | Prime API timeout (seconds) |
+| `ORDERS_CACHE_SIZE` | `1000` | In-process client order ID cache size |
+| `COINBASE_EXCHANGE_BASE_URL` | production API | Optional Exchange API base URL |
+
+Run `make help` for all Make targets.
+
+## Usage (AWS)
 
 ### Create Stack
 
@@ -68,8 +132,6 @@ The *ENV_NAME* will the same as what was passed to the *create-aws-stack* comman
   "svcAccountId": ""
 }
 ```
-
-Prime API credentials can be created in the [Prime web application](https://prime.coinbase.com), once an account is opened.
 
 ### Build/Deploy Container
 
@@ -105,15 +167,15 @@ make update-aws-stack ENV_NAME=dev PROFILE=default REGION=us-east-1
 
 This command deploys the container image specified in the *DockerImageUri* and starts listening for new Prime activities.
 
+The ECS task definition sets `DRY_RUN=false` so the service places real orders. Do not deploy to a production portfolio without understanding the financial impact described in **Warning** above.
+
 ## Building
 
-To build the sample application, ensure that [Go](https://go.dev/) 1.21+ is installed and then run:
-
 ```bash
-go build cmd/server/main.go
+make build
 ```
 
-To build the Docker container, login to the [Amazon ECR Public Gallery](https://gallery.ecr.aws/):
+Binaries are written to `bin/`. To build the Docker container, login to the [Amazon ECR Public Gallery](https://gallery.ecr.aws/):
 
 ```bash
 aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
@@ -125,4 +187,12 @@ Run the docker build:
 docker build .
 ```
 
+Or run locally with your `.env` file:
 
+```bash
+make docker-run-local
+```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).

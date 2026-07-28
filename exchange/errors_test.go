@@ -20,7 +20,7 @@ import "testing"
 
 func TestIsPriceUnavailable(t *testing.T) {
 	err := &PriceUnavailableError{
-		ProductID:  "MATIC-USD",
+		ProductId:  "MATIC-USD",
 		StatusCode: 400,
 		Message:    "Not allowed for delisted products",
 	}

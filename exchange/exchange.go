@@ -88,7 +88,7 @@ func CurrentProductPrice(productId string, timeout time.Duration, httpClient *ht
 		message := parseExchangeErrorMessage(body)
 		if isUnavailableExchangeResponse(res.StatusCode, message) {
 			return price, &PriceUnavailableError{
-				ProductID:  productId,
+				ProductId:  productId,
 				StatusCode: res.StatusCode,
 				Message:    message,
 			}

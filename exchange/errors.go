@@ -25,16 +25,16 @@ import (
 // PriceUnavailableError is returned when Coinbase Exchange cannot quote a product
 // (for example delisted or unknown products). Callers may skip liquidating the asset.
 type PriceUnavailableError struct {
-	ProductID  string
+	ProductId  string
 	StatusCode int
 	Message    string
 }
 
 func (e *PriceUnavailableError) Error() string {
 	if e.Message != "" {
-		return fmt.Sprintf("exchange price unavailable for %s: %s", e.ProductID, e.Message)
+		return fmt.Sprintf("exchange price unavailable for %s: %s", e.ProductId, e.Message)
 	}
-	return fmt.Sprintf("exchange price unavailable for %s (HTTP %d)", e.ProductID, e.StatusCode)
+	return fmt.Sprintf("exchange price unavailable for %s (HTTP %d)", e.ProductId, e.StatusCode)
 }
 
 // IsPriceUnavailable reports whether err indicates the product cannot be priced on Exchange.

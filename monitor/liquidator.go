@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/coinbase-samples/prime-liquidator-go/config"
+	"github.com/coinbase-samples/prime-liquidator-go/exchange"
 	"github.com/coinbase-samples/prime-liquidator-go/monitor/caller"
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/model"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
@@ -33,12 +34,13 @@ import (
 type Liquidator struct {
 	config         *config.AppConfig
 	convertSymbols caller.ConvertSymbols
-	balances       []*prime.Balance
+	balances       []*model.Balance
 	products       caller.ProductLookup
 	wallets        caller.WalletLookup
 	call           caller.Caller
 	stopWaitGroup  sync.WaitGroup
 	running        atomic.Bool
+	skipPriceWarn  sync.Map
 }
 
 // StartLiquidator continuously monitors for assets in hot/trading wallets
@@ -103,7 +105,11 @@ func (l *Liquidator) monitor() {
 
 		for _, asset := range l.balances {
 			if err := l.processAsset(asset); err != nil {
-				zap.L().Error("unable to process assets", zap.Error(err))
+				zap.L().Error(
+					"unable to process asset",
+					zap.String("symbol", asset.Symbol),
+					zap.Error(err),
+				)
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -136,9 +142,9 @@ func (l *Liquidator) describeCurrentState() (err error) {
 
 // processConversion looks up the stablecoin and fiat wallets and then
 // submits a Prime conversion request.
-func (l Liquidator) processConversion(
+func (l *Liquidator) processConversion(
 	amount decimal.Decimal,
-	asset *prime.Balance,
+	asset *model.Balance,
 ) error {
 
 	fiatWallet := l.wallets.Lookup(l.config.FiatCurrencySymbol)
@@ -156,7 +162,7 @@ func (l Liquidator) processConversion(
 
 // processAsset takes an asset and either creates a sell order for fiat or
 // issues a conversion request if the asset is a stablecoin
-func (l Liquidator) processAsset(asset *prime.Balance) error {
+func (l *Liquidator) processAsset(asset *model.Balance) error {
 	if isFiat(asset.Symbol) {
 		return nil
 	}
@@ -179,7 +185,11 @@ func (l Liquidator) processAsset(asset *prime.Balance) error {
 
 	price, err := l.call.ExchangeCurrentProductPrice(productId)
 	if err != nil {
-		return fmt.Errorf("cannot get exchange price: %s - err: %w", productId, err)
+		if exchange.IsPriceUnavailable(err) {
+			l.warnSkipPriceOnce(productId, asset.Symbol, err)
+			return nil
+		}
+		return fmt.Errorf("cannot get exchange price for %s: %w", productId, err)
 	}
 
 	product := l.products.Lookup(productId)
@@ -247,8 +257,8 @@ func (l Liquidator) processAsset(asset *prime.Balance) error {
 // calculateTwapLimitPrice looks at the product, current
 // price, and max discount and returns the adjusted TWAP
 // price X% the most recent Exchange lookup.
-func (l Liquidator) calculateTwapLimitPrice(
-	product *prime.Product,
+func (l *Liquidator) calculateTwapLimitPrice(
+	product *model.Product,
 	price decimal.Decimal,
 ) (limitPrice decimal.Decimal, err error) {
 
@@ -263,7 +273,7 @@ func (l Liquidator) calculateTwapLimitPrice(
 	return
 }
 
-func (l Liquidator) adjustTwapLimitPrice(
+func (l *Liquidator) adjustTwapLimitPrice(
 	price,
 	quoteIncrement decimal.Decimal,
 ) decimal.Decimal {
@@ -276,6 +286,18 @@ func (l Liquidator) adjustTwapLimitPrice(
 	return quo.Floor().Mul(quoteIncrement)
 }
 
-func (l Liquidator) productId(asset *prime.Balance) string {
+func (l *Liquidator) productId(asset *model.Balance) string {
 	return fmt.Sprintf("%s-%s", strings.ToUpper(asset.Symbol), strings.ToUpper(l.config.FiatCurrencySymbol))
+}
+
+func (l *Liquidator) warnSkipPriceOnce(productId, symbol string, err error) {
+	if _, loaded := l.skipPriceWarn.LoadOrStore(productId, struct{}{}); loaded {
+		return
+	}
+	zap.L().Warn(
+		"skipping asset: exchange price unavailable (will not retry logging for this product)",
+		zap.String("symbol", symbol),
+		zap.String("productId", productId),
+		zap.Error(err),
+	)
 }

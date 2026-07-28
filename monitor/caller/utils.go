@@ -21,16 +21,16 @@ import (
 	"fmt"
 	"strings"
 
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/model"
 )
 
 func generateUniqueId(params ...string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(params, "-"))))
 }
 
-type ProductLookup map[string]*prime.Product
+type ProductLookup map[string]*model.Product
 
-func (pl ProductLookup) Lookup(id string) *prime.Product {
+func (pl ProductLookup) Lookup(id string) *model.Product {
 	if p, found := pl[id]; !found {
 		return nil
 	} else {
@@ -38,13 +38,13 @@ func (pl ProductLookup) Lookup(id string) *prime.Product {
 	}
 }
 
-func (pl ProductLookup) Add(p *prime.Product) {
+func (pl ProductLookup) Add(p *model.Product) {
 	pl[p.Id] = p
 }
 
-type WalletLookup map[string]*prime.Wallet
+type WalletLookup map[string]*model.Wallet
 
-func (wl WalletLookup) Lookup(id string) *prime.Wallet {
+func (wl WalletLookup) Lookup(id string) *model.Wallet {
 	if w, found := wl[strings.ToUpper(id)]; !found {
 		return nil
 	} else {
@@ -52,7 +52,7 @@ func (wl WalletLookup) Lookup(id string) *prime.Wallet {
 	}
 }
 
-func (wl WalletLookup) Add(w *prime.Wallet) {
+func (wl WalletLookup) Add(w *model.Wallet) {
 	wl[w.Symbol] = w
 }
 

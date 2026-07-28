@@ -20,14 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/model"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -79,22 +79,26 @@ func CurrentProductPrice(productId string, timeout time.Duration, httpClient *ht
 	}
 
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return price, fmt.Errorf("cannot read Exchange product price response - err: %w", err)
-	}
-
-	if res.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "message") {
-		var errMsg prime.ErrorMessage
-		if err := json.Unmarshal(body, &errMsg); err != nil {
-			return price, fmt.Errorf("cannot unmarshal Exchange error messsage: %w", err)
-		}
-
-		return price, fmt.Errorf("cannot fetch Exchnage price price - did return 200 - val: %d - msg: %s", res.StatusCode, errMsg.Value)
+		return price, fmt.Errorf("cannot read Exchange product price response: %w", err)
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return price, fmt.Errorf("exchange product price did return 200 - val: %d", res.StatusCode)
+		message := parseExchangeErrorMessage(body)
+		if isUnavailableExchangeResponse(res.StatusCode, message) {
+			return price, &PriceUnavailableError{
+				ProductID:  productId,
+				StatusCode: res.StatusCode,
+				Message:    message,
+			}
+		}
+		return price, fmt.Errorf(
+			"exchange product price request failed for %s: HTTP %d%s",
+			productId,
+			res.StatusCode,
+			formatExchangeMessageSuffix(message),
+		)
 	}
 
 	var productPrice ExchangeProductPrice
@@ -118,4 +122,22 @@ func CurrentProductPrice(productId string, timeout time.Duration, httpClient *ht
 	price = v
 
 	return price, nil
+}
+
+func parseExchangeErrorMessage(body []byte) string {
+	if len(body) == 0 || !strings.Contains(string(body), "message") {
+		return ""
+	}
+	var errMsg model.ErrorMessage
+	if err := json.Unmarshal(body, &errMsg); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(errMsg.Value)
+}
+
+func formatExchangeMessageSuffix(message string) string {
+	if message == "" {
+		return ""
+	}
+	return ": " + message
 }

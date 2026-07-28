@@ -17,7 +17,7 @@
 package caller
 
 import (
-	prime "github.com/coinbase-samples/prime-sdk-go"
+	"github.com/coinbase/prime-sdk-go/model"
 	"github.com/shopspring/decimal"
 )
 
@@ -25,23 +25,23 @@ type Caller interface {
 	ExchangeCurrentProductPrice(productId string) (decimal.Decimal, error)
 	PrimeDescribeTradingWallets() (WalletLookup, error)
 	PrimeDescribeProducts() (ProductLookup, error)
-	PrimeDescribeTradingBalances() ([]*prime.Balance, error)
-	PrimeCreateConversion(sourceWallet, destinationWallet *prime.Wallet, amount decimal.Decimal) error
+	PrimeDescribeTradingBalances() ([]*model.Balance, error)
+	PrimeCreateConversion(sourceWallet, destinationWallet *model.Wallet, amount decimal.Decimal) error
 
 	PrimeCreateTwapOrder(
 		productId string,
 		value,
 		orderSize,
 		limitPrice decimal.Decimal,
-		asset *prime.Balance,
+		asset *model.Balance,
 	) error
 
 	PrimeCreateMarketOrder(
 		productId string,
 		value,
 		orderSize decimal.Decimal,
-		asset *prime.Balance,
+		asset *model.Balance,
 	) error
 
-	PrimeCalculateOrderSize(product *prime.Product, amount, holds decimal.Decimal) (orderSize decimal.Decimal, err error)
+	PrimeCalculateOrderSize(product *model.Product, amount, holds decimal.Decimal) (orderSize decimal.Decimal, err error)
 }

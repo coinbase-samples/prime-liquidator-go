@@ -330,7 +330,8 @@ Resources:
             - Name: TWAP_MIN_NOTIONAL
               Value: !Ref TwapMinNotionalPerHour
 
- 
+            - Name: DRY_RUN
+              Value: "false"
 
             - Name: HTTP_CONNECT_TIMEOUT
               Value: !Ref HttpConnectTimeoutInSeconds

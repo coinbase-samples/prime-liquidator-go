@@ -1,4 +1,6 @@
 *.swp
 main
+.env
+.env.local
 .git
 .gitignore

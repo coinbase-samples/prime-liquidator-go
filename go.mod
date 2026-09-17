@@ -3,7 +3,7 @@ module github.com/coinbase-samples/prime-liquidator-go
 go 1.25.0
 
 require (
-	github.com/coinbase/prime-sdk-go v0.9.1
+	github.com/coinbase/prime-sdk-go v0.12.0
 	github.com/google/uuid v1.6.0
 	github.com/jellydator/ttlcache/v2 v2.11.1
 	github.com/joho/godotenv v1.5.1
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/coinbase/core-go v0.3.0 // indirect
+	github.com/coinbase/core-go v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
